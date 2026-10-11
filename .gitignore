@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+megakernel/*.o
+megakernel/*.so
+megakernel/qwen38_mk
+megakernel/qwen38_dflash
+megakernel/*_test
+megakernel/*_debug
+megakernel/*_bench
+megakernel/*ptxas.log
+megakernel/bench/**/run-output/

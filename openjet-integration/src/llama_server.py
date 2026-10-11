@@ -1,0 +1,935 @@
+"""HTTP client for llama-server's OpenAI-compatible API. Manages the server lifecycle."""
+
+from __future__ import annotations
+
+import asyncio
+import importlib.util
+import os
+import shutil
+import signal
+import subprocess
+import sys
+from collections import deque
+from pathlib import Path
+from typing import Any, AsyncIterator, Callable
+
+import httpx
+
+from .airgap import apply_airgap_env, assert_endpoint_allowed
+from .app_paths import openjet_install_root
+from .provisioning import _binary_is_vulkan_only, _model_path_looks_mtp
+from .runtime_protocol import StreamChunk, stream_openai_chat
+from .setup_memory import _kv_bytes_per_token_from_gguf, _max_context_tokens_from_gguf, _vulkan_max_alloc_ctx
+
+
+_FRAGMENTED_LFB_MB = 64
+_JETSON_VMM_CHUNK_MB = "1"
+_JETSON_VMM_RESERVE_MB = "4096"
+_LLAMA_SERVER_EXE_NAME = "llama-server.exe" if os.name == "nt" else "llama-server"
+_FULL_OFFLOAD_GPU_LAYERS = 99
+# Preserve the Ampere default; the validated 16 GB Ada configuration uses four.
+_MTP_SPEC_ARGS: tuple[str, ...] = (
+    "--spec-type",
+    "draft-mtp",
+    "--spec-draft-n-max",
+    "2",
+)
+
+
+def _mtp_spec_args() -> tuple[str, ...]:
+    override = os.environ.get("OPENJET_MTP_DRAFT_MAX", "").strip()
+    if override:
+        try:
+            depth = int(override)
+        except ValueError as exc:
+            raise ValueError("OPENJET_MTP_DRAFT_MAX must be an integer in [1,8]") from exc
+        if not 1 <= depth <= 8:
+            raise ValueError("OPENJET_MTP_DRAFT_MAX must be an integer in [1,8]")
+    else:
+        gpu = _megakernel_gpu_info()
+        depth = 4 if gpu and gpu[1] == "8.9" else 2
+    return (*_MTP_SPEC_ARGS[:-1], str(depth))
+
+
+# The Qwen3.8-27B megakernel (<openjet>/megakernel): a specialised CUDA engine for this one model and
+# quantisations on RTX 30/40/50-series GPUs with 16 GB or more (sm_86, sm_89, sm_120) with an OpenAI-compatible
+# server in front of it.
+_MEGAKERNEL_SERVER = Path("server") / "mk_server.py"
+_MEGAKERNEL_FILES = ("libqwen38mk.so", "draft_vocab_32k.bin", str(_MEGAKERNEL_SERVER))
+_MEGAKERNEL_MIN_VRAM_MIB = 15360
+# Ampere (RTX 30 / A-series), Ada (RTX 40 / Ada workstation), Blackwell (RTX 50 / Pro).
+_MEGAKERNEL_COMPUTE_CAPS = frozenset({"8.6", "8.9", "12.0"})
+
+
+def _megakernel_root() -> Path:
+    """Where the megakernel source and build live (built or not)."""
+    override = os.environ.get("OPENJET_MEGAKERNEL_DIR", "").strip()
+    return Path(override).expanduser() if override else openjet_install_root() / "megakernel"
+
+
+def _megakernel_dir() -> Path | None:
+    root = _megakernel_root()
+    return root if all((root / name).is_file() for name in _MEGAKERNEL_FILES) else None
+
+
+def _megakernel_model_supported(model: str) -> bool:
+    path = Path(model)
+    if path.is_file():
+        from .megakernel_gguf import compatible_gguf
+        return compatible_gguf(path)
+    name = path.name.lower()
+    return name.endswith(".gguf") and "qwen3.8-27b" in name and "q4_k_m" in name
+
+
+def _megakernel_gpu() -> str | None:
+    """nvidia-smi index of a GPU the megakernel can run on, or None."""
+    gpu = _megakernel_gpu_info()
+    return gpu[0] if gpu else None
+
+
+def _megakernel_gpu_info() -> tuple[str, str] | None:
+    """(nvidia-smi index, compute capability) of a GPU the megakernel can run on, or None.
+
+    The megakernel runs on CUDA device 0, so a CUDA_VISIBLE_DEVICES already in the
+    environment limits the choice to its first entry; otherwise any GPU qualifies
+    and _start_megakernel pins the one found here.
+    """
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,uuid,compute_cap,memory.total", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip().splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    pinned = os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")[0].strip()
+    for line in out:
+        fields = [field.strip() for field in line.split(",")]
+        if len(fields) != 4:
+            continue
+        index, uuid, cap, mem = fields
+        if pinned and pinned not in (index, uuid):
+            continue
+        try:
+            if cap in _MEGAKERNEL_COMPUTE_CAPS and float(mem) >= _MEGAKERNEL_MIN_VRAM_MIB:
+                return index, cap
+        except ValueError:
+            continue
+    return None
+
+
+def megakernel_unavailable_reason(model: str) -> str | None:
+    """None when the megakernel can serve *model* on this machine, else why not."""
+    if not _megakernel_model_supported(model):
+        return "the megakernel only supports the validated Qwen3.8-27B tensor schema (Q4_K_M or GSQ-RCO mixed quantization)"
+    if _megakernel_dir() is None:
+        return "the megakernel is not built (rerun `openjet setup` with the CUDA toolkit installed)"
+    if importlib.util.find_spec("jinja2") is None:
+        return "the megakernel server needs jinja2"
+    if _megakernel_gpu() is None:
+        return (f"the megakernel needs an RTX 30/40/50-series GPU (sm_86, sm_89 or sm_120) "
+                f"with >= {_MEGAKERNEL_MIN_VRAM_MIB} MiB")
+    return None
+
+
+def _stderr_detail(lines: deque[str]) -> str:
+    err = "\n".join(lines).strip()
+    if len(err) > 8000:
+        keep = 4000
+        omitted = len(err) - (keep * 2)
+        err = f"{err[:keep]}\n... <{omitted} chars omitted> ...\n{err[-keep:]}"
+    return err or "no stderr output"
+
+
+async def _cancel_task(task: asyncio.Task[None]) -> None:
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+def _find_built_llama_binary(name: str) -> Path | None:
+    build_bin = openjet_install_root() / "llama.cpp" / "build" / "bin"
+    direct = build_bin / name
+    if direct.is_file():
+        return direct
+    for config_name in ("Release", "RelWithDebInfo", "MinSizeRel", "Debug"):
+        candidate = build_bin / config_name / name
+        if candidate.is_file():
+            return candidate
+    matches = sorted(build_bin.glob(f"**/{name}"))
+    return matches[0] if matches else None
+
+
+def _find_llama_server() -> str:
+    path = shutil.which("llama-server")
+    if path:
+        return path
+    candidate = _find_built_llama_binary(_LLAMA_SERVER_EXE_NAME)
+    if candidate is not None:
+        return str(candidate)
+    raise FileNotFoundError("llama-server not found on PATH or <openjet>/llama.cpp/build/bin/")
+
+
+class LlamaServerClient:
+    """Starts llama-server and streams chat completions via its OpenAI API."""
+
+    def __init__(
+        self,
+        model: str,
+        binary: str | None = None,
+        host: str = "127.0.0.1",
+        port: int = 18080,
+        context_window_tokens: int = 2048,
+        device: str = "auto",
+        gpu_layers: int = 99,
+        llama_cpu_moe: bool = False,
+        llama_n_cpu_moe: int = 0,
+        llama_mtp: bool = False,
+        airgapped: bool = False,
+        diagnostics_hook: Callable[[str, dict[str, Any]], None] | None = None,
+        backend: str = "auto",
+    ) -> None:
+        self.model = model
+        self.binary = str(binary or "").strip() or None
+        self.host = host
+        self.port = port
+        self.context_window_tokens = max(512, int(context_window_tokens))
+        self.device = device.strip().lower() if device else "auto"
+        self.gpu_layers = max(0, int(gpu_layers))
+        self.llama_cpu_moe = bool(llama_cpu_moe)
+        self.llama_n_cpu_moe = max(0, int(llama_n_cpu_moe))
+        self.llama_mtp = bool(llama_mtp) or _model_path_looks_mtp(model)
+        self.airgapped = bool(airgapped)
+        self.base_url = f"http://{host}:{port}"
+        self._http = httpx.AsyncClient(timeout=httpx.Timeout(connect=30.0, read=None, write=None, pool=30.0))
+        self._proc: asyncio.subprocess.Process | None = None
+        self._start_lock = asyncio.Lock()
+        self.reasoning_mode = "default"
+        self._diagnostics_hook = diagnostics_hook
+        # "auto": the megakernel when it supports the model and GPU, else llama-server;
+        # "megakernel": the megakernel or fail; "llama": always llama-server
+        self.backend = (backend or "auto").strip().lower()
+        if self.backend not in {"auto", "megakernel", "llama"}:
+            raise ValueError("llama_backend must be one of: auto, megakernel, llama")
+        self.active_backend = "llama.cpp"
+        self._stderr_task: asyncio.Task[None] | None = None
+
+    def set_reasoning_mode(self, mode: str) -> None:
+        normalized = mode.strip().lower()
+        if normalized not in {"default", "on", "off"}:
+            raise ValueError("reasoning mode must be one of: default, on, off")
+        self.reasoning_mode = normalized
+
+    def reasoning_status(self) -> str:
+        return self.reasoning_mode
+
+    def _emit_diagnostic(self, event_type: str, **data: Any) -> None:
+        if not self._diagnostics_hook:
+            return
+        try:
+            self._diagnostics_hook(event_type, data)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _ensure_jetson_clocks_sudoers() -> None:
+        """Install a passwordless sudoers rule for jetson_clocks.
+
+        Only runs once — skipped if the rule already exists.
+        Prompts the user for their password via ``sudo`` on first install.
+        """
+        import subprocess
+
+        sudoers_file = Path("/etc/sudoers.d/open-jet-clocks")
+        if sudoers_file.exists():
+            return
+        rule = "ALL ALL=(ALL) NOPASSWD: /usr/bin/jetson_clocks\n"
+        try:
+            subprocess.run(
+                ["sudo", "tee", str(sudoers_file)],
+                input=rule.encode(), capture_output=True, timeout=30,
+            )
+            subprocess.run(
+                ["sudo", "chmod", "0440", str(sudoers_file)],
+                capture_output=True, timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    @staticmethod
+    def _maximize_gpu_clocks() -> None:
+        """Pin GPU and EMC clocks to maximum frequency on Jetson."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["sudo", "-n", "jetson_clocks"],
+                timeout=5, capture_output=True,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return
+        if result.returncode != 0:
+            # Fallback: write directly to GPU devfreq sysfs.
+            gpu_devfreq = Path("/sys/devices/platform/bus@0/17000000.gpu/devfreq/17000000.gpu")
+            try:
+                max_freq = (gpu_devfreq / "max_freq").read_text().strip()
+                (gpu_devfreq / "min_freq").write_text(max_freq)
+            except (PermissionError, OSError):
+                pass
+
+    @staticmethod
+    def _compact_memory() -> None:
+        """Drop filesystem caches and compact free memory.
+
+        On Jetson (unified memory) CUDA needs large contiguous allocations.
+        Dropping caches frees pagecache/slab memory so the kernel can coalesce
+        free pages into larger contiguous regions.
+        """
+        import subprocess
+
+        try:
+            subprocess.run(["sync"], timeout=5, capture_output=True)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+        try:
+            Path("/proc/sys/vm/drop_caches").write_text("3")
+            Path("/proc/sys/vm/compact_memory").write_text("1")
+        except PermissionError:
+            return
+        except OSError:
+            return
+
+    @staticmethod
+    def _is_jetson_platform() -> bool:
+        return Path("/etc/nv_tegra_release").exists() or Path("/dev/nvhost-gpu").exists()
+
+    @staticmethod
+    def _largest_free_block_mb_from_text(text: str, *, page_size_kb: int) -> float | None:
+        max_order = -1
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line.startswith("Node "):
+                continue
+            parts = line.split()
+            counts = parts[4:]
+            for order, count_text in enumerate(counts):
+                try:
+                    count = int(count_text)
+                except ValueError:
+                    continue
+                if count > 0:
+                    max_order = max(max_order, order)
+        if max_order < 0:
+            return None
+        return (page_size_kb * (2 ** max_order)) / 1024.0
+
+    @classmethod
+    def _largest_free_block_mb(cls) -> float | None:
+        if os.name != "posix" or not hasattr(os, "sysconf"):
+            return None
+        try:
+            buddyinfo = Path("/proc/buddyinfo").read_text(encoding="utf-8")
+        except OSError:
+            return None
+        page_size_kb = int(os.sysconf("SC_PAGE_SIZE")) // 1024
+        if page_size_kb <= 0:
+            page_size_kb = 4
+        return cls._largest_free_block_mb_from_text(buddyinfo, page_size_kb=page_size_kb)
+
+    @staticmethod
+    def _read_meminfo_fields() -> dict[str, float]:
+        wanted = {
+            "MemTotal:",
+            "MemAvailable:",
+            "MemFree:",
+            "Cached:",
+            "AnonPages:",
+            "Shmem:",
+            "CmaTotal:",
+            "CmaFree:",
+            "SwapTotal:",
+            "SwapFree:",
+        }
+        values: dict[str, float] = {}
+        try:
+            text = Path("/proc/meminfo").read_text(encoding="utf-8")
+        except OSError:
+            return values
+        for raw_line in text.splitlines():
+            parts = raw_line.split()
+            if len(parts) < 2 or parts[0] not in wanted:
+                continue
+            try:
+                values[parts[0].rstrip(":").lower() + "_mb"] = round(int(parts[1]) / 1024.0, 2)
+            except ValueError:
+                continue
+        return values
+
+    @classmethod
+    def _memory_snapshot(cls) -> dict[str, float]:
+        snapshot = cls._read_meminfo_fields()
+        lfb_mb = cls._largest_free_block_mb()
+        if lfb_mb is not None:
+            snapshot["largest_free_block_mb"] = round(lfb_mb, 2)
+        return snapshot
+
+    @staticmethod
+    def _startup_profile_for_lfb(lfb_mb: float | None) -> tuple[int, int, str, bool, bool]:
+        if lfb_mb is not None and lfb_mb < _FRAGMENTED_LFB_MB:
+            return (128, 32, "off", True, True)
+        # Match llama.cpp's normal defaults unless we detect fragmentation severe
+        # enough to warrant the small-footprint startup path.
+        return (2048, 512, "on", False, False)
+
+    @classmethod
+    def _should_disable_mmap_for_launch(
+        cls, *, device: str, gpu_layers: int, existing_no_mmap: bool
+    ) -> bool:
+        if existing_no_mmap:
+            return True
+        if device not in {"cuda", "rocm", "vulkan"}:
+            return False
+        if gpu_layers >= _FULL_OFFLOAD_GPU_LAYERS:
+            # Every weight ends up in VRAM, so the host copy only has to survive
+            # the upload. The file size against RAM does not matter here, and
+            # mmap actively hurts: a model larger than RAM has its pages evicted
+            # and re-read from disk on every forward pass.
+            return True
+        # Layers stay resident on the host, where `--no-mmap` would copy them
+        # into anonymous memory with no way to page them back to the model file.
+        return False
+
+    async def _prepare_memory_for_launch(self) -> float | None:
+        lfb_mb = self._largest_free_block_mb()
+        for _ in range(3):
+            if lfb_mb is not None and lfb_mb >= _FRAGMENTED_LFB_MB:
+                return lfb_mb
+            self._compact_memory()
+            await asyncio.sleep(0.4)
+            lfb_mb = self._largest_free_block_mb()
+        return lfb_mb
+
+    async def start(self) -> None:
+        async with self._start_lock:
+            if self._proc and self._proc.returncode is None:
+                return
+            assert_endpoint_allowed(self.base_url, label="the llama.cpp runtime")
+            await self._stop_server()
+            self.active_backend = "llama.cpp"
+            await self._cleanup_stale_inference_processes()
+            binary = self.binary or _find_llama_server()
+            env = os.environ.copy()
+            apply_airgap_env(env, enabled=self.airgapped)
+            bin_dir = os.path.dirname(binary)
+            env["LD_LIBRARY_PATH"] = f"{bin_dir}:/usr/local/cuda/lib64:" + env.get("LD_LIBRARY_PATH", "")
+            env.setdefault("CUDA_MODULE_LOADING", "LAZY")
+
+            resolved_device = self._resolve_device(binary=binary)
+            is_jetson = resolved_device == "cuda" and self._is_jetson_platform()
+            if is_jetson:
+                self._ensure_jetson_clocks_sudoers()
+                self._maximize_gpu_clocks()
+                # Use cudaMallocManaged on Jetson unified memory so CUDA doesn't
+                # need physically contiguous pages for large allocations.
+                env["GGML_CUDA_ENABLE_UNIFIED_MEMORY"] = "1"
+                # Jetson can fail large unified-memory allocations even when total
+                # RAM is available. A patched llama.cpp build uses these knobs to
+                # back CUDA/VMM buffers with 1 MiB chunks and smaller VA reserves.
+                env.setdefault("GGML_CUDA_VMM_CHUNK_MB", _JETSON_VMM_CHUNK_MB)
+                env.setdefault("GGML_CUDA_VMM_RESERVE_MB", _JETSON_VMM_RESERVE_MB)
+            lfb_mb = await self._prepare_memory_for_launch() if is_jetson else None
+            requested_ngl = self.gpu_layers if resolved_device in ("cuda", "vulkan", "rocm", "metal") else 0
+            requested_ctx = self.context_window_tokens
+            model_path = Path(self.model).expanduser()
+            if model_path.suffix.lower() == ".gguf" and model_path.is_file():
+                model_max_context = _max_context_tokens_from_gguf(model_path)
+                if model_max_context is not None and model_max_context > 0:
+                    requested_ctx = min(requested_ctx, model_max_context)
+                if resolved_device == "vulkan":
+                    # Vulkan caps a single allocation (2 GB under Dozen on WSL2).
+                    # A context carried over from a config written for another
+                    # device can ask for a KV buffer past that limit, which fails
+                    # the allocation and takes the server down on startup.
+                    kv_bpt = _kv_bytes_per_token_from_gguf(model_path)
+                    alloc_cap = _vulkan_max_alloc_ctx(kv_bpt) if kv_bpt else None
+                    if alloc_cap is not None:
+                        requested_ctx = min(requested_ctx, alloc_cap)
+            if self.backend != "llama":
+                if resolved_device != "cuda" or is_jetson:
+                    device_name = "jetson" if is_jetson else resolved_device
+                    reason = f"the megakernel needs a desktop CUDA GPU (resolved device: {device_name})"
+                else:
+                    reason = megakernel_unavailable_reason(self.model)
+                if reason is None:
+                    try:
+                        await self._start_megakernel(env=env, ctx=requested_ctx)
+                        self.context_window_tokens = requested_ctx
+                        self.active_backend = "megakernel"
+                        return
+                    except (RuntimeError, TimeoutError, OSError) as exc:
+                        self._emit_diagnostic("runtime_megakernel_start_failed", error=str(exc)[-4000:])
+                        if self.backend == "megakernel":
+                            raise
+                elif self.backend == "megakernel":
+                    raise RuntimeError(f"llama_backend is megakernel, but {reason}")
+                else:
+                    self._emit_diagnostic("runtime_megakernel_skipped", reason=reason)
+            batch, ubatch, fit_mode, no_warmup, no_mmap = self._startup_profile_for_lfb(lfb_mb)
+            no_mmap = self._should_disable_mmap_for_launch(
+                device=resolved_device,
+                gpu_layers=requested_ngl,
+                existing_no_mmap=no_mmap,
+            )
+            startup_snapshot = self._memory_snapshot() if resolved_device == "cuda" else {}
+            self._emit_diagnostic(
+                "runtime_llama_starting",
+                model=Path(self.model).name,
+                resolved_device=resolved_device,
+                requested_ctx=requested_ctx,
+                requested_ngl=requested_ngl,
+                batch=batch,
+                ubatch=ubatch,
+                fit_mode=fit_mode,
+                no_warmup=no_warmup,
+                no_mmap=no_mmap,
+                jetson_platform=is_jetson,
+                airgapped=self.airgapped,
+                **startup_snapshot,
+            )
+            await self._start_once(
+                binary=binary,
+                env=env,
+                ngl=requested_ngl,
+                ctx=requested_ctx,
+                batch=batch,
+                ubatch=ubatch,
+                fit_mode=fit_mode,
+                no_warmup=no_warmup,
+                no_mmap=no_mmap,
+                llama_cpu_moe=self.llama_cpu_moe,
+                llama_n_cpu_moe=self.llama_n_cpu_moe,
+                llama_mtp=self.llama_mtp,
+            )
+            self.gpu_layers = requested_ngl
+            self.context_window_tokens = requested_ctx
+
+    async def _start_once(
+        self,
+        *,
+        binary: str,
+        env: dict[str, str],
+        ngl: int,
+        ctx: int,
+        batch: int,
+        ubatch: int,
+        fit_mode: str,
+        no_warmup: bool,
+        no_mmap: bool,
+        llama_cpu_moe: bool = False,
+        llama_n_cpu_moe: int = 0,
+        llama_mtp: bool = False,
+    ) -> None:
+        # Ensure swap state directory exists for KV cache save/restore.
+        slot_save_dir = Path(".openjet/state/swap")
+        slot_save_dir.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            binary,
+            "-m",
+            self.model,
+            "--host",
+            self.host,
+            "--port",
+            str(self.port),
+            "--parallel",
+            "1",
+            "--slot-save-path",
+            str(slot_save_dir.resolve()),
+        ]
+        if no_mmap:
+            cmd.append("--no-mmap")
+        if fit_mode:
+            cmd.extend(["--fit", fit_mode])
+        if no_warmup:
+            cmd.append("--no-warmup")
+        if llama_cpu_moe:
+            cmd.append("--cpu-moe")
+        elif llama_n_cpu_moe > 0:
+            cmd.extend(["-ncmoe", str(llama_n_cpu_moe)])
+        if llama_mtp:
+            cmd.extend(_mtp_spec_args())
+        cmd.extend(["--flash-attn", "on", "-ctk", "q8_0", "-ctv", "q8_0"])
+        cmd.extend([
+            "-b",
+            str(batch),
+            "-ub",
+            str(ubatch),
+            "-ngl",
+            str(ngl),
+            "-c",
+            str(ctx),
+        ])
+        self._emit_diagnostic(
+            "runtime_llama_launch_command",
+            command=" ".join(cmd),
+            ctx=ctx,
+            ngl=ngl,
+            batch=batch,
+            ubatch=ubatch,
+            fit_mode=fit_mode,
+            no_warmup=no_warmup,
+            no_mmap=no_mmap,
+            llama_cpu_moe=llama_cpu_moe,
+            llama_n_cpu_moe=llama_n_cpu_moe,
+            llama_mtp=llama_mtp,
+            cuda_module_loading=env.get("CUDA_MODULE_LOADING", ""),
+            ggml_cuda_enable_unified_memory=env.get("GGML_CUDA_ENABLE_UNIFIED_MEMORY", ""),
+            ggml_cuda_vmm_chunk_mb=env.get("GGML_CUDA_VMM_CHUNK_MB", ""),
+            ggml_cuda_vmm_reserve_mb=env.get("GGML_CUDA_VMM_RESERVE_MB", ""),
+        )
+        stderr_lines: deque[str] = deque(maxlen=120)
+        outcome = await self._spawn_until_healthy(cmd, env=env, timeout=120.0, stderr_lines=stderr_lines)
+        if outcome == "exited":
+            detail = _stderr_detail(stderr_lines)
+            self._emit_diagnostic(
+                "runtime_llama_start_failed",
+                error=detail,
+                ctx=ctx,
+                ngl=ngl,
+                batch=batch,
+                ubatch=ubatch,
+                fit_mode=fit_mode,
+                no_warmup=no_warmup,
+                returncode=self._proc.returncode,
+                stderr_line_count=len(stderr_lines),
+                stderr_tail=list(stderr_lines)[-20:],
+                **self._memory_snapshot(),
+            )
+            raise RuntimeError(
+                f"llama-server exited with code {self._proc.returncode}: {detail}"
+            )
+        if outcome == "ready":
+            self._emit_diagnostic(
+                "runtime_llama_start_ready",
+                pid=self._proc.pid if self._proc else 0,
+                ctx=ctx,
+                ngl=ngl,
+                stderr_line_count=len(stderr_lines),
+            )
+            return
+        self._emit_diagnostic(
+            "runtime_llama_start_timeout",
+            ctx=ctx,
+            ngl=ngl,
+            stderr_line_count=len(stderr_lines),
+            stderr_tail=list(stderr_lines)[-20:],
+            **self._memory_snapshot(),
+        )
+        raise TimeoutError("llama-server did not become ready")
+
+    async def _start_megakernel(self, *, env: dict[str, str], ctx: int) -> None:
+        root = _megakernel_dir()
+        assert root is not None
+        cmd = [
+            sys.executable,
+            str(root / _MEGAKERNEL_SERVER),
+            "-m",
+            self.model,
+            "--host",
+            self.host,
+            "--port",
+            str(self.port),
+            "-c",
+            str(ctx),
+        ]
+        draft_model = env.get("OPENJET_MK_DFLASH_MODEL", "").strip()
+        if draft_model:
+            path = Path(draft_model).expanduser()
+            if not path.is_file():
+                raise ValueError("OPENJET_MK_DFLASH_MODEL must point to a local DFlash2 GGUF")
+            depth = int(env.get("OPENJET_MK_DRAFT", "7"))
+            if not 1 <= depth <= 7:
+                raise ValueError("OPENJET_MK_DRAFT must be in [1,7] for DFlash2")
+            cmd += ["--draft-model", str(path.resolve()), "--draft", str(depth)]
+        if not env.get("CUDA_VISIBLE_DEVICES", "").strip():
+            gpu = _megakernel_gpu()
+            if gpu is not None:
+                # nvidia-smi indexes GPUs in PCI bus order; CUDA does too with this set
+                env = {**env, "CUDA_DEVICE_ORDER": "PCI_BUS_ID", "CUDA_VISIBLE_DEVICES": gpu}
+        self._emit_diagnostic("runtime_megakernel_launch_command", command=" ".join(cmd), ctx=ctx)
+        stderr_lines: deque[str] = deque(maxlen=120)
+        # keep draining stderr once ready: the server logs one line per request
+        outcome = await self._spawn_until_healthy(
+            cmd, env=env, timeout=180.0, stderr_lines=stderr_lines, keep_reading_stderr=True,
+        )
+        if outcome == "exited":
+            detail = _stderr_detail(stderr_lines)
+            self._proc = None
+            raise RuntimeError(f"megakernel server exited: {detail}")
+        if outcome == "ready":
+            self._emit_diagnostic("runtime_megakernel_start_ready", pid=self._proc.pid, ctx=ctx)
+            return
+        await self._stop_server()
+        raise TimeoutError("megakernel server did not become ready")
+
+    async def _spawn_until_healthy(
+        self,
+        cmd: list[str],
+        *,
+        env: dict[str, str],
+        timeout: float,
+        stderr_lines: deque[str],
+        keep_reading_stderr: bool = False,
+    ) -> str:
+        """Launch *cmd* as self._proc and poll /health until "ready", "exited" or "timeout".
+
+        Once ready, the stderr reader is kept for the server's lifetime when
+        *keep_reading_stderr* is set (_stop_server cancels it), else cancelled.
+        """
+        self._proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            env=env,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stderr_task = asyncio.create_task(self._capture_startup_stderr(stderr_lines))
+        deadline = asyncio.get_event_loop().time() + timeout
+        while asyncio.get_event_loop().time() < deadline:
+            if self._proc.returncode is not None:
+                await stderr_task
+                return "exited"
+            try:
+                r = await self._http.get(f"{self.base_url}/health")
+                if r.status_code == 200:
+                    if keep_reading_stderr:
+                        self._stderr_task = stderr_task
+                    else:
+                        await _cancel_task(stderr_task)
+                    return "ready"
+            except (
+                httpx.ConnectError,
+                httpx.ReadError,
+                httpx.RemoteProtocolError,
+                httpx.TimeoutException,
+            ):
+                pass
+            await asyncio.sleep(1.0)
+        await _cancel_task(stderr_task)
+        return "timeout"
+
+    async def _capture_startup_stderr(self, sink: deque[str]) -> None:
+        if not self._proc or not self._proc.stderr:
+            return
+        # _stop_server clears self._proc while this may still be draining
+        stream = self._proc.stderr
+        while True:
+            line = await stream.readline()
+            if not line:
+                return
+            text = line.decode(errors="replace").rstrip()
+            if not text:
+                continue
+            sink.append(text)
+            lowered = text.lower()
+            if any(token in lowered for token in ("cuda error", "out of memory", "nvmap", "ggml", "llama_context", "load_tensors")):
+                self._emit_diagnostic(
+                    "runtime_llama_stderr_line",
+                    summary=text[:200],
+                )
+
+    async def _cleanup_stale_inference_processes(self) -> None:
+        stale_pids = self._find_stale_inference_pids()
+        if not stale_pids:
+            return
+        self._emit_diagnostic(
+            "runtime_llama_cleanup_stale_processes",
+            stale_pid_count=len(stale_pids),
+            stale_pids=stale_pids[:8],
+        )
+
+        for pid in stale_pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                continue
+            except PermissionError:
+                continue
+
+        await asyncio.sleep(0.8)
+
+        for pid in stale_pids:
+            if not self._pid_exists(pid):
+                continue
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                continue
+            except PermissionError:
+                continue
+
+        # Give the driver a short window to release CUDA/NvMap allocations.
+        await asyncio.sleep(0.6)
+
+    def _find_stale_inference_pids(self) -> list[int]:
+        if os.name != "posix" or not hasattr(os, "getuid"):
+            return []
+        proc_dir = Path("/proc")
+        if not proc_dir.is_dir():
+            return []
+
+        stale: list[int] = []
+        uid = os.getuid()
+        current_pid = os.getpid()
+
+        for entry in proc_dir.iterdir():
+            if not entry.name.isdigit():
+                continue
+            pid = int(entry.name)
+            if pid == current_pid:
+                continue
+
+            status_path = entry / "status"
+            try:
+                status = status_path.read_text(errors="ignore")
+            except (FileNotFoundError, PermissionError, OSError):
+                continue
+            uid_line = next((line for line in status.splitlines() if line.startswith("Uid:")), "")
+            if not uid_line:
+                continue
+            parts_uid = uid_line.split()
+            if len(parts_uid) < 2:
+                continue
+            try:
+                real_uid = int(parts_uid[1])
+            except ValueError:
+                continue
+            if real_uid != uid:
+                continue
+
+            cmdline_path = entry / "cmdline"
+            try:
+                raw = cmdline_path.read_bytes()
+            except (FileNotFoundError, PermissionError, OSError):
+                continue
+            if not raw:
+                continue
+
+            parts = [p for p in raw.decode(errors="ignore").split("\x00") if p]
+            if not parts:
+                continue
+            exe_name = Path(parts[0]).name.lower()
+            is_megakernel = any(Path(part).as_posix().endswith(_MEGAKERNEL_SERVER.as_posix()) for part in parts[1:3])
+            if exe_name != _LLAMA_SERVER_EXE_NAME and not is_megakernel:
+                continue
+
+            stale.append(pid)
+
+        return stale
+
+    def _pid_exists(self, pid: int) -> bool:
+        return Path(f"/proc/{pid}").exists()
+
+    async def close(self) -> None:
+        await self._stop_server()
+        await self._http.aclose()
+
+    async def reset_kv_cache(self) -> None:
+        # llama.cpp clears KV state on server restart.
+        proc = getattr(self, "_proc", None)
+        if not proc or proc.returncode is not None:
+            return
+        await self._stop_server()
+        await self.start()
+
+    async def _stop_server(self) -> None:
+        if self._stderr_task is not None:
+            self._stderr_task.cancel()
+            self._stderr_task = None
+        if self._proc and self._proc.returncode is None:
+            self._proc.send_signal(signal.SIGTERM)
+            try:
+                await asyncio.wait_for(self._proc.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                self._proc.kill()
+        self._proc = None
+
+    def _resolve_device(self, binary: str | None = None) -> str:
+        from .hardware import recommended_device
+
+        recommended = recommended_device()
+        configured = self.device if self.device in {"cuda", "cpu", "vulkan", "rocm", "metal"} else recommended
+        # A Linux CUDA install used to persist device=vulkan from the Ubuntu zip.
+        # That must not pin ngl/context to the Vulkan path on a CUDA GPU.
+        # A Vulkan-only prebuilt (source-build fallback) must keep Vulkan policy.
+        if recommended == "cuda" and configured == "vulkan":
+            candidate = binary or self.binary
+            if candidate and _binary_is_vulkan_only(candidate):
+                return "vulkan"
+            return "cuda"
+        return configured
+
+    async def save_kv_cache(self, path: Path) -> bool:
+        """Save KV cache for slot 0 to *path* via llama-server slot API.
+
+        The server resolves *filename* relative to ``--slot-save-path``,
+        so we pass just the stem (filename without directory).
+        """
+        proc = getattr(self, "_proc", None)
+        if proc is None:
+            return False
+        if proc.returncode is not None:
+            return False
+        try:
+            r = await self._http.post(
+                f"{self.base_url}/slots/0?action=save",
+                json={"filename": path.name},
+                timeout=60.0,
+            )
+            return r.status_code == 200
+        except (httpx.HTTPError, Exception) as exc:
+            self._emit_diagnostic("runtime_llama_kv_save_failed", error=str(exc))
+            return False
+
+    async def restore_kv_cache(self, path: Path) -> bool:
+        """Restore KV cache for slot 0 from *path* via llama-server slot API."""
+        proc = getattr(self, "_proc", None)
+        if proc is None:
+            return False
+        if proc.returncode is not None:
+            return False
+        try:
+            r = await self._http.post(
+                f"{self.base_url}/slots/0?action=restore",
+                json={"filename": path.name},
+                timeout=60.0,
+            )
+            return r.status_code == 200
+        except (httpx.HTTPError, Exception) as exc:
+            self._emit_diagnostic("runtime_llama_kv_restore_failed", error=str(exc))
+            return False
+
+    async def chat_stream(
+        self, messages: list[dict], *, use_tools: bool = True
+    ) -> AsyncIterator[StreamChunk]:
+        assert_endpoint_allowed(self.base_url, label="the llama.cpp runtime")
+        await self.start()
+        extra_body: dict[str, object] | None = None
+        if self.reasoning_mode == "on":
+            extra_body = {
+                "reasoning_format": "auto",
+                "chat_template_kwargs": {"enable_thinking": True},
+            }
+        elif self.reasoning_mode == "off":
+            extra_body = {
+                "reasoning_format": "none",
+                "chat_template_kwargs": {"enable_thinking": False},
+            }
+        async for chunk in stream_openai_chat(
+            self._http,
+            base_url=self.base_url,
+            model="local",
+            messages=messages,
+            use_tools=use_tools,
+            extra_body=extra_body,
+        ):
+            yield chunk
