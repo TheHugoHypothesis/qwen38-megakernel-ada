@@ -28,12 +28,14 @@ This repository snapshot contains the megakernel port source, build files, HTTP 
 |---|---|
 | GPU | GeForce RTX 4060 Ti, 16 GB, Ada Lovelace, compute capability 8.9 (`sm_89`), 34 SMs |
 | Clocks | Stock/default clocks |
-| Target | Qwen3.8-27B GSQ-RCO GGUF; mixed IQ/K quantization, about 11.28 GiB on disk |
-| Draft | Qwen3.8-27B DFlash2 Q4_K_M GGUF; about 1.05 GiB on disk, 5 draft blocks |
-| KV | Q8_0 or custom experimental signed Q4; DFlash2's sliding cache remains FP16 |
+| Target | [`ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF`](https://huggingface.co/ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF) · `Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf`; non-uniform mixed precision, 3.55 BPW, about 11.28 GiB |
+| Draft | Separate Qwen3.8-27B DFlash2 `Q4_K_M` GGUF; about 1.05 GiB on disk, 5 draft blocks |
+| Target KV | Q8_0 or custom experimental signed Q4; DFlash2's sliding cache remains FP16 |
 | Tested context | Q4 target KV has been run with 72,000 context capacity; published speed sweep has populated prompts through 32,768 tokens |
 
-The target and draft weights are not included. Use the compatible Qwen3.8-27B GSQ-RCO target and DFlash2 draft GGUFs. The launcher checks the target/draft architecture, dimensions, tokenizer, and draft taps when native DFlash2 is selected.
+**Quantization distinction:** the target is the ISTA-DASLab **GSQ-RCO mixed-precision model**, not the standard Qwen3.8-27B `Q4_K_M` target. The file comes from the [`models--ISTA-DASLab--Qwen3.8-27B-GSQ-RCO-GGUF` model repository](https://huggingface.co/ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF). Its `IQ3_S` file-type label is an overall label; the 866 tensors use multiple formats, including IQ3_S, IQ3_XXS, IQ4_XS, IQ2 variants, Q2_K, Q4_K, Q6_K, F32, and BF16. GSQ-RCO uses non-uniform precision allocation designed to retain more quality at a low average bit rate. The megakernel loads these target tensors in their original formats and does not requantize target weights.
+
+`Q4_K_M` describes the **separate DFlash2 draft model**. `--kv q4` selects a third, independent format: the experimental lossy Q4 **target KV cache**. Neither changes the GSQ-RCO target weights. The target and draft weights are not included. The launcher checks target/draft architecture, dimensions, tokenizer, and draft taps when native DFlash2 is selected.
 
 ## Context scaling on the 4060 Ti
 
@@ -67,7 +69,7 @@ Use the launcher with explicit model paths. `--engine megakernel-dflash2` select
 ```bash
 python3 port_ada.py \
   --engine megakernel-dflash2 \
-  --model /path/to/Qwen3.8-27B-GSQ-RCO.gguf \
+  --model /path/to/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf \
   --draft-model /path/to/Qwen3.8-27B-DFlash2-Q4_K_M.gguf \
   --ctx 40000 --draft 7 --kv q4 --prefill-chunk 128 \
   --llama-root ./llama.cpp \
@@ -84,4 +86,4 @@ The code includes CUDA unit tests and external-verification tools under [`megake
 
 ## Provenance and license
 
-The megakernel is derived from **[L-Forster/open-jet](https://github.com/L-Forster/open-jet)**, based on upstream checkout revision [`06223125d8320ca7c41d28e62cbc92dc0eefb197`](https://github.com/L-Forster/open-jet/commit/06223125d8320ca7c41d28e62cbc92dc0eefb197). This directory is a source snapshot of the Open-Jet Qwen3.8 megakernel plus the Ada, GSQ-RCO, Q4 KV, native DFlash2, server, and benchmark work developed in this workspace. It is not an official upstream release. Please retain upstream attribution and review the [Open-Jet AGPL-3.0 license](LICENSE). Components derived from llama.cpp retain their separate [MIT notice](megakernel/LICENSE.llama-cpp); third-party components keep their respective licenses.
+The megakernel is derived from **[L-Forster/open-jet](https://github.com/L-Forster/open-jet)**, based on upstream checkout revision [`06223125d8320ca7c41d28e62cbc92dc0eefb197`](https://github.com/L-Forster/open-jet/commit/06223125d8320ca7c41d28e62cbc92dc0eefb197). llama.cpp was used as the reference implementation; the local comparison checkout was revision [`aa94f2086147cd4bfbcff818ce998dffce5fcb39`](https://github.com/ggml-org/llama.cpp/commit/aa94f2086147cd4bfbcff818ce998dffce5fcb39). This directory is a source snapshot of the Open-Jet Qwen3.8 megakernel plus the Ada, GSQ-RCO, Q4 KV, native DFlash2, server, and benchmark work developed in this workspace. It is not an official upstream release. Please retain upstream attribution and review the [Open-Jet AGPL-3.0 license](LICENSE). Components derived from llama.cpp retain their separate [MIT notice](megakernel/LICENSE.llama-cpp); third-party components keep their respective licenses.

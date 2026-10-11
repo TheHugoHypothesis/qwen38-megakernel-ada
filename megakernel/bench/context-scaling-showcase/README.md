@@ -17,7 +17,7 @@
 
 ## Results at a glance
 
-These measurements use the Qwen3.8-27B GSQ-RCO target with native DFlash2, comparing the custom Q4 and Q8 target KV caches. The measured workload populated prompts up to **32,768 tokens**. Context capacity is the engine's configured maximum and includes generation/workspace headroom; it is not the same as the number of prompt tokens actually processed.
+These measurements use the ISTA-DASLab [`Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf`](https://huggingface.co/ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF) target with native DFlash2, comparing the custom Q4 and Q8 **target KV caches**. The target weights are GSQ-RCO non-uniform mixed precision (3.55 BPW), not a standard Q4_K_M target. The measured workload populated prompts up to **32,768 tokens**. Context capacity is the engine's configured maximum and includes generation/workspace headroom; it is not the same as the number of prompt tokens actually processed.
 
 ![Decode and prefill throughput by populated prompt length](assets/throughput.png)
 
@@ -38,8 +38,8 @@ The benchmark owner has separately run the Q4 configuration with a **72,000-toke
 
 ## What this measures
 
-- **Target:** `Qwen3.8-27B-GSQ-RCO-GGUF`, reported as IQ3_S, approximately 11.28 GiB on disk.
-- **Draft:** `Qwen3.8-27B-DFlash2-Q4_K_M.gguf`, approximately 1.05 GiB on disk; five draft layers and depth 7 in the benchmark.
+- **Target:** `models--ISTA-DASLab--Qwen3.8-27B-GSQ-RCO-GGUF/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf`, non-uniform mixed precision, approximately 11.28 GiB on disk. IQ3_S is the overall label; per-tensor types vary.
+- **Draft:** [`z-lab/Qwen3.8-27B-DFlash2-GGUF`](https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2-GGUF), `Qwen3.8-27B-DFlash2-Q4_K_M.gguf`, approximately 1.05 GiB on disk; five draft layers and depth 7 in the benchmark.
 - **Execution:** Open-Jet's custom CUDA megakernel, native DFlash2 path, on an RTX 4060 Ti 16 GB (Ada Lovelace, compute capability 8.9 / `sm_89`, 34 SMs), at stock clocks.
 - **KV formats:** custom Q8 and Q4 target caches. Q4 is lossy and can change logits and generated output. It is evaluated here for performance and memory, not as a proof of output equivalence or preserved model quality.
 - **Prompt fixture:** `prompt.ids` contains a short tokenized Qwen prompt. The runner repeats its body to build deterministic exact-length prompts. Repetition makes a controlled load test, but can make DFlash acceptance unrepresentative of ordinary conversations.
@@ -50,19 +50,19 @@ The table and plotted CSV are the measured source for the charts: [`results.csv`
 
 ## Run it
 
-Run commands from the root of this package. The target and draft GGUFs are external inputs. Build the CUDA executable first, and place a llama.cpp checkout/build at `llama.cpp` under the package root, or adjust the paths below.
+Run commands from the repository root. The target and draft GGUFs are not copied into this showcase; point the runner at your own files. Build the megakernel executable first if it is not already available. For this repository's Ada build, the project Makefile provides the `qwen38_dflash` target with `ARCH=89`.
 
 ```bash
-make -C megakernel LLAMA=../llama.cpp ARCH=89 qwen38_dflash
+make -C open-jet/megakernel ARCH=89 qwen38_dflash
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install -r megakernel/bench/context-scaling-showcase/requirements.txt
+python -m pip install -r open-jet/megakernel/bench/context-scaling-showcase/requirements.txt
 
-TARGET_GGUF="/path/to/Qwen3.8-27B-GSQ-RCO.gguf"
+TARGET_GGUF="/path/to/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf"
 DRAFT_GGUF="/path/to/Qwen3.8-27B-DFlash2-Q4_K_M.gguf"
-MK_BIN="megakernel/qwen38_dflash"
+MK_BIN="open-jet/megakernel/qwen38_dflash"
 
-python3 megakernel/bench/context-scaling-showcase/context_scaling.py \
+python3 open-jet/megakernel/bench/context-scaling-showcase/context_scaling.py \
   --model "$TARGET_GGUF" \
   --draft-model "$DRAFT_GGUF" \
   --binary "$MK_BIN" \
@@ -70,7 +70,7 @@ python3 megakernel/bench/context-scaling-showcase/context_scaling.py \
   --lengths 256 1024 4096 8192 16384 32768 \
   --kv-formats q8 q4 \
   --tokens 128 --reps 3 --depth 7 --prefill-chunk 128 \
-  --output megakernel/bench/context-scaling-showcase/run-output
+  --output open-jet/megakernel/bench/context-scaling-showcase/run-output
 ```
 
 The runner starts a fresh process for each prompt length and KV format, records per-run output, logs, JSON and CSV, and generates a combined plot. Longer prompts take longer and need more free VRAM. Close other GPU workloads before running. The full sweep can take several minutes and will write generated artifacts under the ignored `run-output/` directory.
@@ -78,9 +78,9 @@ The runner starts a fresh process for each prompt length and KV format, records 
 To create the two README charts from any compatible CSV:
 
 ```bash
-python3 megakernel/bench/context-scaling-showcase/plot_results.py \
-  --csv megakernel/bench/context-scaling-showcase/run-output/results.csv \
-  --output megakernel/bench/context-scaling-showcase/run-output/assets
+python3 open-jet/megakernel/bench/context-scaling-showcase/plot_results.py \
+  --csv open-jet/megakernel/bench/context-scaling-showcase/run-output/results.csv \
+  --output open-jet/megakernel/bench/context-scaling-showcase/run-output/assets
 ```
 
 For a larger **capacity** test, increase prompt length while reserving room for generation and workspace. For example, a prompt around 71,808 tokens with 128 generated tokens and 64 tokens of configured headroom requests about 72,000 context capacity. Change `--lengths` and `--tokens` accordingly; a successful capacity allocation alone does not report throughput at that populated length.
