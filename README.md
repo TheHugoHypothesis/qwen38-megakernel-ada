@@ -88,4 +88,42 @@ The code includes CUDA unit tests and external-verification tools under [`megake
 
 ## Provenance and license
 
-The megakernel is derived from **[L-Forster/open-jet](https://github.com/L-Forster/open-jet)**, based on upstream checkout revision [`06223125d8320ca7c41d28e62cbc92dc0eefb197`](https://github.com/L-Forster/open-jet/commit/06223125d8320ca7c41d28e62cbc92dc0eefb197). llama.cpp was used as the reference implementation; the local comparison checkout was revision [`aa94f2086147cd4bfbcff818ce998dffce5fcb39`](https://github.com/ggml-org/llama.cpp/commit/aa94f2086147cd4bfbcff818ce998dffce5fcb39). This directory is a source snapshot of the Open-Jet Qwen3.8 megakernel plus the Ada, GSQ-RCO, Q4 KV, native DFlash2, server, and benchmark work developed in this workspace. It is not an official upstream release. Please retain upstream attribution and review the [Open-Jet AGPL-3.0 license](LICENSE). Components derived from llama.cpp retain their separate [MIT notice](megakernel/LICENSE.llama-cpp); third-party components keep their respective licenses.
+
+## What this work adds beyond Open-Jet
+
+Open-Jet provides the original Qwen3.8 CUDA megakernel and the foundation for this port. The following are the Ada adaptation and additional work in this repository snapshot; they should not be attributed to the upstream Open-Jet project unless separately merged there:
+
+- **RTX 4060 Ti / Ada support:** `sm_89` build and runtime path, resource checks for the 34-SM GPU, and memory-aware prefill chunk selection for a 16 GB card.
+- **GSQ-RCO mixed-quant target support:** GGUF metadata, tensor-name, shape, and per-tensor-type validation, plus CUDA weight readers/dispatch for the model's actual mixture of IQ, K-quant, F32, and BF16 tensors. The target weights are used in their supplied formats rather than converted to a uniform Q4 quantization.
+- **Native CUDA DFlash2 draft path:** a five-layer draft decoder with CUDA kernels captured in CUDA Graphs, GPU-side feature handling, selector/proposal generation, and integration with the megakernel target verifier. This is a native CUDA draft implementation, but the draft is **not fused into the target's persistent megakernel**. The llama.cpp/GGML implementation remains available as a reference path in the CLI.
+- **Speculative verification and state handling:** T=8 verification for up to seven proposals, rejection/replay coverage, shared target embedding/output storage, and server-side checkpoint/reset/rewind/truncation support.
+- **Ada-oriented kernel work:** packed mixed-IQ readers, DP4A paths, paired-row FFN processing, typed Q4_K/Q6_K draft MMQ, and the associated CPU/GPU oracles. Slower IMMA and pipeline candidates are retained as experiments or documented as rejected rather than presented as wins.
+- **Memory and serving adaptations:** optional packed symmetric Q4 target KV to reduce cache capacity cost, Q8 as the default, VRAM preflight/runtime reporting, an Ada launcher, and Open-Jet/HTTP/C API integration. Q4 KV is lossy and is independent of target weight quantization.
+- **Validation and performance records:** RTX 4060 Ti benchmarks at stock clocks, context-scaling tools, output and verifier checks, API compatibility changes for Unsloth sampling/reasoning fields, and implementation journals. The recorded measurements show a small short-prompt advantage over the local llama.cpp/DFlash2 baseline but no demonstrated general throughput win; see the limitations and exact conditions in the benchmark notes.
+
+The main entry points for reviewing these additions are [the GSQ-RCO/Ada implementation note](megakernel/ADA_GSQ.md), [the native DFlash2 design and limits](megakernel/DFLASH_NATIVE.md), [the implementation history](megakernel/IMPLEMENTATION_LOG.md), and [the benchmark summary](megakernel/IMPLEMENTATION_RESULTS.md). The concepts guide is [CONCEPTS.md](CONCEPTS.md).
+
+## How to reference this work
+
+When citing the port or using its benchmark results, cite the GitHub repository containing this snapshot and identify the revision you used. Replace `<owner>` below with the GitHub account or organization that publishes this directory; do not cite the upstream Open-Jet project as the author of the Ada/DFlash2 additions.
+
+**Suggested prose citation:**
+
+> Qwen3.8-27B CUDA Megakernel: Ada Port. (2026). RTX 4060 Ti adaptation of the Open-Jet Qwen3.8 megakernel with native CUDA DFlash2 and GSQ-RCO mixed-precision target support. GitHub repository, `<repository URL>` (commit `<commit SHA>`).
+
+**BibTeX template:**
+
+```bibtex
+@software{qwen38_megakernel_ada,
+  title        = {Qwen3.8-27B CUDA Megakernel: Ada Port},
+  author       = {{<owner or contributor name>}},
+  year         = {2026},
+  url          = {<repository URL>},
+  version      = {<tag or commit SHA>},
+  note         = {RTX 4060 Ti sm_89 port; target: ISTA-DASLab Qwen3.8-27B GSQ-RCO; native CUDA DFlash2 draft}
+}
+```
+
+For reproducible performance claims, also report the GPU (RTX 4060 Ti 16 GB), stock clock settings, CUDA and driver versions, target and draft GGUF revisions, context and populated prompt length, KV format, proposal depth, sampling configuration, and benchmark commit. The target weights are from [ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF](https://huggingface.co/ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF); the separate draft is from [z-lab/Qwen3.8-27B-DFlash2-GGUF](https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2-GGUF). Cite these model repositories separately when discussing the weights or draft model.
+
+Please also retain the upstream references and licenses: [L-Forster/open-jet at the source revision](https://github.com/L-Forster/open-jet/commit/06223125d8320ca7c41d28e62cbc92dc0eefb197), [llama.cpp at the comparison revision](https://github.com/ggml-org/llama.cpp/commit/aa94f2086147cd4bfbcff818ce998dffce5fcb39), and the applicable notices listed above. This attribution distinguishes the upstream megakernel and llama.cpp reference code from the adaptations and measurements in this port.
