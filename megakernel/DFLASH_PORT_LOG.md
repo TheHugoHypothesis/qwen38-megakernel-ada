@@ -1,125 +1,39 @@
-# Porte DFlash2: registro de implementação
+# DFlash2 port: implementation log
 
-## Etapa 1 - target MK com draft GGML/CUDA
+## Stage 1: MK target with a GGML/CUDA draft
 
-Autorizado em 2026-10-10: começar a implementar o porte. Clocks padrão;
-target e draft GGUF originais. O checkout llama.cpp será usado como biblioteca
-e referência sem alterações. Baseline IQ16 preservado com hashes em
-`bench/dflash-port/baseline/`.
+Authorized on 2026-10-10. GPU clocks were to remain at stock settings. The original target and draft GGUFs were used; the llama.cpp checkout remained an unmodified library and reference. The IQ16 baseline and hashes are preserved under `bench/dflash-port/baseline/`.
 
-Primeira entrega: CLI experimental com até quatro propostas, captura das
-entradas das camadas `[6,20,34,48,62]`, verificação externa e draft real.
-MAXT e os layouts T=5 existentes permanecem nesta etapa. Sete propostas e
-fusão dos kernels do draft dependem de validação posterior.
+The first deliverable was an experimental CLI supporting up to four proposals, target-feature capture at layers `[6,20,34,48,62]`, external verification, and a real DFlash2 draft. Existing MAXT and T=5 layouts were retained. Seven proposals and draft-kernel fusion were deferred pending validation.
 
-O embedding IQ2_S e LM head Q4_K serão migrados uma vez para buffers GGML
-CUDA padrão, emprestados ao modelo draft. Os bytes serão copiados sem
-requantização, os ponteiros MK atualizados e as alocações antigas liberadas.
-O draft/contexto deve ser destruído antes do target que possui esses buffers.
-Isso evita um segundo target e evita wrappers CUDA com layouts privados.
+The IQ2_S embedding and Q4_K LM head were migrated once into standard GGML CUDA buffers and borrowed by the draft. Bytes were copied without requantization; MK pointers were updated and old allocations released. The draft/context must be destroyed before the target that owns those buffers. This avoided a second target model and private CUDA-layout wrappers.
 
-Features: buffer por chunk em F32, callback após prefill e após verificação.
-Somente anchor + propostas aceitas são injetadas no KV draft; o bloco de
-ruído é removido antes da injeção. Não armazenar cinco hiddens do contexto
-inteiro. O bridge de modelo usa `llama-model.h` interno do checkout local;
-essa dependência será explícita no build/relatório.
+Features were captured into F32 buffers per chunk and delivered through callbacks after prefill and verification. Only the anchor and accepted proposals were injected into draft KV; speculative noise was cleared before each injection. The implementation did not retain five hidden-state streams for the whole context. The bridge uses the private `llama-model.h` from the local llama.cpp checkout; that dependency is explicit in the build notes.
 
-Validação prevista: proposals corretos/incorretos/rejeição por posição,
-IDs sem especulação, captura por chunk, bytes/pointer sharing, geração
-DFlash2 real, memória e throughput comparado a DFlash2 4 do llama.cpp.
-Nenhum ganho será assumido antes da medição.
+The validation plan covered correct and incorrect proposals, rejection at each position, non-speculative token IDs, chunked capture, shared bytes/pointers, real DFlash2 generation, memory, and throughput against llama.cpp DFlash2 4. No gain was assumed before measurement.
 
-## Resultado executável
+## Executable result and measurements
 
-O build `make ARCH=89 all qwen38_dflash external_verify_test` terminou.
-O CLI `qwen38_dflash` gera com o target MK e o draft GGUF real, com até
-quatro propostas. Não há segundo target ou requantização. O draft GGML/CUDA
-é reutilizado, com features F32 por chunk e embedding/head compartilhados.
-Instruções e contratos de lifetime/reset: [DFLASH_PORT.md](DFLASH_PORT.md).
+The `make ARCH=89 all qwen38_dflash external_verify_test` build completed. `qwen38_dflash` runs the MK target with the real GGUF draft and up to four proposals. It does not load a second target or requantize shared weights. The draft graph, F32 chunk features, and shared embedding/head are described in [DFLASH_PORT.md](DFLASH_PORT.md).
 
-## Medições e checkpoints
+1. [Verifier and features](bench/dflash-port/01-VERIFICADOR-E-FEATURES.md): rejection positions 0–3, full acceptance, continuation IDs matching scalar decode, shared bytes, and chunked prefill passed.
+2. [Hybrid and memory](bench/dflash-port/02-HIBRIDO-E-MEMORIA.md): 67.05 tok/s short, 55.65 long, 64.41 sampling; sampled NVML peak 14,945 MiB.
+3. [Quality and limits](bench/dflash-port/03-QUALIDADE-E-LIMITES.md): 10/10 numeric answers correct; 19/20 texts matched the previous MK version and 15/20 matched non-speculative llama. This is not a broad accuracy evaluation.
+4. [MK regression](bench/dflash-port/04-REGRESSAO-DO-MK.md): no observed regression; variation below 0.1% and IDs matched the preserved baseline.
+5. [Final checks](bench/dflash-port/05-CHECKS-FINAIS.md): external test repeated on the final build and memcheck of four MK launches reported zero errors.
 
-1. [Verificador/features](bench/dflash-port/01-VERIFICADOR-E-FEATURES.md):
-   rejeições nas posições 0–3, aceitação completa, continuação com IDs iguais
-   ao decode escalar, bytes compartilhados e prefill por chunks passaram.
-2. [Híbrido/memória](bench/dflash-port/02-HIBRIDO-E-MEMORIA.md): 67,05 tok/s
-   curto, 55,65 longo, 64,41 sampling 0,7; pico NVML amostrado 14945 MiB.
-3. [Qualidade/limites](bench/dflash-port/03-QUALIDADE-E-LIMITES.md): 10/10
-   respostas numéricas corretas; 19/20 textos iguais ao MK anterior e 15/20
-   iguais ao llama sem especulação. Não estabelece acurácia ampla.
-4. [Regressão MK](bench/dflash-port/04-REGRESSAO-DO-MK.md): sem regressão
-   observada; variação menor que 0,1% e IDs iguais ao baseline preservado.
-5. [Checks finais](bench/dflash-port/05-CHECKS-FINAIS.md): teste externo
-   repetido no build final e memcheck de quatro lançamentos MK, zero erros.
+Fresh llama.cpp DFlash2 4 measured 74.13/59.52 tok/s. The hybrid was about 10.5%/11.2% faster than MK MTP4 in the two cases, but about 9.6%/6.5% slower than llama.cpp DFlash2 4. Different long continuations limit direct comparisons. The chart-generation source is `bench/plot_dflash_port.py`; raw per-run data and build hashes are retained where available in the associated benchmark records.
 
-Baseline novo llama.cpp/DFlash2 4: 74,13 / 59,52 tok/s. O híbrido é ~10,5%
-e ~11,2% mais rápido que MK MTP4 nos dois casos, mas ~9,6% e ~6,5% abaixo
-do DFlash2 4 llama.cpp. Continuações longas diferentes limitam a comparação.
-Gráfico: [PNG](bench/dflash-port/report/dflash-port.png),
-[SVG](bench/dflash-port/report/dflash-port.svg),
-[PDF](bench/dflash-port/report/dflash-port.pdf), fontes e hashes no mesmo
-diretório. Dados brutos e comandos nos JSONs por ensaio.
+The hybrid measurements came from the first integrated build. The final build added multiple prompts, excluded text conversion from timed throughput, and made weight migration rollback safe; decode math kernels were unchanged. The quality suite, MK A/B, and complete external test were rerun on the final build.
 
-Os números do híbrido foram coletados no primeiro build integrado. O build
-final acrescentou prompts múltiplos, texto fora do intervalo cronometrado e
-rollback seguro durante migração de pesos; os kernels numéricos de decode
-permanecem iguais. A suíte de qualidade e o A/B MK usam o build final;
-o teste externo completo também foi repetido e passou nesse build.
+## Native DFlash2 and target optimization
 
-## Próxima etapa
+Subsequent stages implemented a native CUDA draft decoder captured in CUDA Graphs, T=8 target verification, GPU-resident features, DP4A/Q8 math, packed reads, checkpoint/API support, and tests. The draft is not fused into a single persistent kernel. See [DFLASH_NATIVE.md](DFLASH_NATIVE.md), [stage 11](bench/dflash-port/11-ENTREGA-NATIVA-RESULTADOS.md), and the later IQ/MMQ work in [stage 22](bench/dflash-port/22-RESULTADO-IQ-E-DRAFT-NATIVO.md).
 
-Comparação independente de logits/features, seguida de estudo T=8/sete
-propostas e redução do custo do verificador. O target/injeção consome perto
-de 89% do decode; injeção sozinha ~1,4%. Fusão integral do draft não resolve
-esse custo principal. Contextos maiores e integração HTTP/multi-turn ainda
-não foram implementados/validados. A divergência numérica longa previamente
-identificada no MK continua pendente. Launcher de produção e clocks padrão
-preservados; llama.cpp sem alterações.
+Target-side stages later optimized IQ FFN paths and typed draft MMQ. The selected result reached 93.21/62.28/93.36 tok/s short/long/sampling across six samples. It improved on the prior MK snapshot by 15.18%/15.40%/15.88%, but compared with fresh llama.cpp it was +1.49% short and -0.34% long: no general win was demonstrated. Clocks remained at stock settings. Full details, limitations, and next steps are in [stage 22](bench/dflash-port/22-RESULTADO-IQ-E-DRAFT-NATIVO.md).
 
+The reasoning-effort compatibility update for Unsloth is recorded in [stage 24](bench/dflash-port/24-UNSLOTH-REASONING-EFFORT.md). The state-of-the-art review and Amdahl-based follow-up priorities are in [stage 25](bench/dflash-port/25-ESTADO-DA-ARTE-E-MARGEM.md).
 
-## Continuação: draft nativo e otimizações finais
+## Optional Q4 target KV
 
-Implementado o decoder completo em CUDA Graphs, target T=8, GPU features, DP4A/Q8, leituras packed, API32K/checkpoints e testes reais com clocks padrão. Ver [guia atual](DFLASH_NATIVE.md) e [resultados finais](bench/dflash-port/11-ENTREGA-NATIVA-RESULTADOS.md). A arquitetura não funde o draft em um único kernel persistente. Baseline llama.cpp continua mais rápido; limitações numéricas/qualidade estão explicitadas. Journals06–11 e snapshots mantidos.
-
-## Continuação: IQ target e MMQ tipado — 2026-10-11
-
-Journals13–21: perfil do FFN, fusão gate/up dos seis IQ, 36 pares de formatos, especialização/inlining e duas linhas IQ, protótipos IMMA/pipelines derrotados, MMQ Q4_K/Q6_K tipado com quatro linhas por warp e limitação do tail. O teste HTTP ampliado encontrou checkpoint incorreto no segundo turno; corrigido e novamente validado. Build/snapshot anterior e o estágio com falha foram preservados.
-
-Selecionado e validado:93,21/62,28/93,36 tokens/s curto/longo/sampling, seis amostras, clocks padrão. Ganhos sobre o snapshot anterior15,18%/15,40%/15,88%; contra llama fresco+1,49% curto e−0,34% longo, sem vitória geral demonstrada. IDs das três fixtures128 preservados; qualidade10/10 tarefas,17/20 gerações com IDs iguais ao native anterior.36 casos externos,13 HTTP,34 CPU e memchecks filtrados passaram. Draft continua CUDA Graphs. Ver [22: resultados, código, limites e próximos passos](bench/dflash-port/22-RESULTADO-IQ-E-DRAFT-NATIVO.md).
-
-## Compatibilidade Unsloth — controles de raciocínio
-
-O servidor Python passa a aceitar reasoning_effort no nível principal e os aliases high→xhigh/none→thinking desligado, preservando kwargs e padrão GGUF. O Studio já permite configurar o formato em Connections; não foram editadas sua instalação ou configurações salvas. Reiniciar MK para aplicar. 44 testes CPU/12 subtests e dez checks de renderização com template GGUF/serializer local passaram, sem inferência GPU nesta etapa. Ver [24: código, configuração e limites](bench/dflash-port/24-UNSLOTH-REASONING-EFFORT.md).
-
-## Avaliação de estado da arte e próximos alvos
-
-[25](bench/dflash-port/25-ESTADO-DA-ARTE-E-MARGEM.md) registra a pesquisa em fontes primárias e a comparação local: competitivo, ganho curto1,49% sobre llama.cpp/DFlash2, sem estado da arte geral demonstrado. Prioridade FFN/target e validação representativa; fusão isolada do draft é limitada por sua fração de tempo. Cenários de Amdahl foram calculados e salvos como hipóteses, sem novo benchmark, mudança CUDA, clocks ou interrupção do servidor ativo.
-
-
-## Q4 target KV — implementation in progress
-
-[26: Q4 target KV](bench/dflash-port/26-Q4-TARGET-KV.md) records the explicit
-packed symmetric INT4 target cache, prefill/decode/T=8 integration, and
-validation. Q8 remains the launcher default; DFlash cache and model weights
-are unchanged. Intermediate results: CPU packing/dequantization oracle for
-FP16/Q8/Q4 passed (9,472 values each), packing memcheck zero errors, existing
-44 CPU tests/12 subtests passed. Ada compilation and integrated GPU checks
-are still in progress; no final quality/performance claim at this stage.
-
-
-## Q4 target KV — completed
-
-[26](bench/dflash-port/26-Q4-TARGET-KV.md): packed target KV implemented in
-prefill, decode and T=8 verification; native DFlash unchanged. At65,536
-capacity/chunk128, cache saves1.0625 GiB versus Q8; measured CUDA use15.050
-GiB/free0.597 GiB. Short93.23 tok/s versus preserved Q8 at38K93.36; sampling
-93.38 versus93.47. The1,365-token fixture drops57.72 versus62.34 with a
-changed continuation and27 versus25 cycles. Q8 remains default.
-
-Validation: both formats10/10 small tasks, Q420/20 generations completed
-and16/20 matching Q8 IDs; rebuilt Q820/20 matching prior IDs.36 verifier
-cases per format, 9 attention cases including position65,535, packing
-oracle, 13+13 HTTP checks, actual14,530-token secret retrieval, MTP smoke,
-44 CPU tests/12 subtests, bounded CUDA memchecks all passed. No broad
-perplexity/full65K-model quality guarantee. Raw/aggregate data and preserved
-pre-change binaries: `bench/dflash-port/q4-target/`. No clocks changed.
+[Stage 26](bench/dflash-port/26-Q4-TARGET-KV.md) documents the optional packed INT4 target KV implementation. Q8 remains the default. At 65,536 cache capacity and chunk 128, Q4 saves 1.0625 GiB versus Q8. Quality checks found 16/20 generations with IDs matching Q8; a long fixture also had lower throughput and a changed continuation. The checks do not establish broad quality equivalence. See the stage note for the complete test list, memory readings, and raw artifacts.

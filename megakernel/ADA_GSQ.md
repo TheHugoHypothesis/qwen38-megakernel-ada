@@ -1,27 +1,8 @@
-# RTX 4060 Ti 16 GB e Qwen3.8 GSQ-RCO
+# RTX 4060 Ti 16 GB and Qwen3.8 GSQ-RCO
 
-**Implementação posterior em 2026-10-10:** IQ16, chunk auto e prefill com
-menos cópias elevaram o megakernel para 60,66 tok/s greedy curto, 50,02 longo
-e 59,35 sampling, aproximadamente +25% sobre seu original. DFlash2 Q4 foi
-baixado, conferido e executado via llama.cpp: 91,35/62,29/92,56 tok/s.
-O launcher atual é `python open-jet/megakernel/serve_ada.py`.
-[Resultado completo e limitações](IMPLEMENTATION_RESULTS.md),
-[diário](IMPLEMENTATION_LOG.md) e
-[gráfico atual](bench/optimization-implementation/report/ganhos_implementados.png).
-As tabelas históricas abaixo descrevem a adaptação inicial; o relatório novo
-contém os A/B, a memória com chunk auto e a avaliação local de vinte prompts.
+This note documents the Ada adaptation for the ISTA-DASLab GSQ-RCO target GGUF. The file is a non-uniform mixed-precision model; it is not the standard Qwen3.8-27B Q4_K_M target. The validated snapshot was `d562806dbafae37109975e970aae91b43e73b440`. The GGUF is 12,120,016,960 bytes (11.288 GiB), with a tensor payload of 12,109,021,184 bytes. Its embedding is IQ2_S, output is Q4_K, and all eight MTP matrices are Q6_K. Only 25 of the 65 FFN gate/up pairs share a dtype.
 
-Esta adaptação mantém os pesos GGUF e o ciclo de decode cooperativo do projeto.
-O carregador exige a arquitetura `qwen35`, 64 blocos principais + um bloco MTP,
-D=5120, FF=17408, 24 cabeças Q, 4 KV e vocabulário de 248320 tokens. Valida
-metadados, nomes, dimensões e formatos de todos os 866 tensores antes de fazer
-upload. O nome do arquivo não autoriza o carregamento de um modelo incompatível.
-O snapshot local validado é `d562806dbafae37109975e970aae91b43e73b440`.
-O GGUF tem 12.120.016.960 bytes (11,288 GiB); o payload dos tensores soma
-12.109.021.184 bytes. Embedding é IQ2_S, output é Q4_K e as oito matrizes do
-MTP são Q6_K. Apenas 25 dos 65 pares FFN gate/up compartilham o mesmo dtype.
-
-| Dtype | Tensores | Dtype | Tensores |
+| Tensor type | Count | Tensor type | Count |
 |---|---:|---|---:|
 | F32 | 360 | BF16 | 96 |
 | IQ3_S | 144 | IQ3_XXS | 78 |
@@ -30,241 +11,104 @@ MTP são Q6_K. Apenas 25 dos 65 pares FFN gate/up compartilham o mesmo dtype.
 | IQ1_M | 1 | Q2_K | 13 |
 | Q4_K | 39 | Q6_K | 8 |
 
-## Compilar neste workspace
+The loader validates `qwen35`, 64 main blocks plus one MTP block, embedding width 5120, FFN width 17408, 24 query heads, 4 KV heads, and vocabulary size 248,320. It checks metadata, tensor names, shapes, and types across all 866 tensors before upload. A filename alone does not make an unsupported model eligible.
 
-Partindo da raiz que contém `open-jet/`, `llama.cpp/` e o cache do modelo:
+## Build and run
 
-```sh
-cmake -S llama.cpp -B llama.cpp/build \
-  -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
-  -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=ON \
-  -DCMAKE_CUDA_ARCHITECTURES=89 -DGGML_CUDA_GRAPHS=ON
-cmake --build llama.cpp/build --target llama-server llama-bench -j 6
-make -C open-jet/megakernel ARCH=89 LLAMA=../../llama.cpp
-```
+From the package root, build llama.cpp for CUDA and Ada, then build the megakernel with `ARCH=89`. The Makefile consumes local llama.cpp headers and libraries; `libllama` provides tokenization/template support and cuBLAS supports fallback prefill. Rebuild CUDA objects after changing architecture, llama.cpp headers, or source (`make -B`). `ARCH=89` and `ARCH=sm_89` are equivalent. See the top-level README for complete commands.
 
-O build reutiliza `ggml-common.h` do checkout local do llama.cpp para os layouts
-GGML e as tabelas IQ. `libllama` fornece o tokenizer e o template; cuBLAS fornece
-a multiplicação do fallback de prefill. O objeto CUDA deve ser reconstruído ao
-mudar arquitetura, headers do llama.cpp ou fonte (`make -B`). `ARCH=89` e
-`ARCH=sm_89` são equivalentes.
-
-Exemplo de servidor de texto; não pode coexistir na GPU com outro servidor que
-já ocupe os 13–14 GiB deste modelo:
+Example text server (the target model alone uses roughly 13–14 GiB of device memory, so do not run it beside another large GPU process):
 
 ```sh
 MODEL=models--ISTA-DASLab--Qwen3.8-27B-GSQ-RCO-GGUF/snapshots/d562806dbafae37109975e970aae91b43e73b440/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf
-python open-jet/megakernel/server/mk_server.py -m "$MODEL" \
+python megakernel/server/mk_server.py -m "$MODEL" \
   --port 18080 -c 32768 --kv q8 --draft 4 --prefill-chunk auto
 ```
 
-Para escolher o backend no open-jet: `llama_backend: megakernel` exige o kernel;
-`auto` verifica o GGUF local e a GPU e conserva o fallback de inicialização para
-llama-server. A elegibilidade de GPU aceita sm_89 com pelo menos 15360 MiB.
-O carregador CUDA decide se a memória **livre** suporta o contexto solicitado.
+Open-Jet's `llama_backend: megakernel` selects the custom engine explicitly. Its `auto` mode checks the local GGUF and GPU, and keeps llama-server as a startup fallback. Ada eligibility requires `sm_89` and at least 15,360 MiB of reported capacity; the CUDA loader separately checks currently free memory against the requested context.
 
-## Alterações CUDA e quantizações
+## CUDA changes for mixed quantization
 
-- `native_quant.cuh`: IQ2_XXS, IQ2_XS, IQ2_S, IQ3_XXS, IQ3_S, IQ4_XS,
-  IQ1_M e Q2_K, sem requantização. Decodifica oito inteiros com escala e offset
-  para `dp4a`; compartilha esses pesos entre os tokens verificados. Usa cargas
-  vetoriais/cache de leitura para as tabelas e consulta IQ4 em registradores.
-- `qwen38_mk.cu`: distribui os 48 value heads DeltaNet com stride pelo número
-  real de blocos, incluindo GPUs com menos de 48 SMs. Projeções, embedding,
-  gate/up, output e MTP despacham pelos tipos reais de cada matriz; gate e up
-  podem ter formatos e row strides diferentes. Alpha/beta BF16/F16 são ampliados
-  para F32 antes do folding existente da norma.
-- IQ3_S, IQ3_XXS e IQ4_XS têm helpers com tipo fixado em compilação, evitando
-  despachar novamente o formato a cada fragmento. O caminho Q6_K original é
-  reutilizado no MTP, onde todas as oito matrizes usam esse formato.
-- A acumulação IQ fica em registradores dentro do helper; referências ao array
-  do chamador só são atualizadas ao terminar a redução. Isso evita tráfego
-  repetido para a memória local do kernel.
-- A grade usa `cooperative_groups::this_grid().sync()`. A atenção inicializa o
-  padding das matrizes e os fatores de softmax. Split-K limita os chunks ao
-  número de SMs; NT=512 foi preservado porque o layout depende dos 16 warps.
-- `prefill.cuh`: preserva os GEMMs especializados existentes. Para os novos
-  formatos, dequantiza **uma matriz por vez** para FP16, multiplica com cuBLAS
-  usando acumulação F32 e reutiliza os mesmos buffers. Gate/up mistos usam dois
-  GEMMs e a mesma função SiLU. O workspace não cresce com o número de camadas.
-- O down projection de cinco tokens usa dois slices de K e mantém somas
-  parciais em registradores. Projeções residuais abortam ao detectar valores
-  não finitos, impedindo que NaNs sejam transformados silenciosamente em IDs.
-- `MK_PREFILL_CHUNK` / `--prefill-chunk`: capacidade entre 128 e 2048, múltipla
-  de 128; padrão atual `auto` seleciona pela VRAM livre (antes era 512).
-  O scoring limita o microbatch de logits à capacidade real
-  de `y0`, evitando overflow quando o chunk é reduzido.
+- `native_quant.cuh` decodes IQ2_XXS, IQ2_XS, IQ2_S, IQ3_XXS, IQ3_S, IQ4_XS, IQ1_M, and Q2_K without rewriting the GGUF. It expands eight integer weights with scale and offset for DP4A, shares those decoded weights across verified tokens, and uses vectorized/read-only cache accesses for lookup tables.
+- `qwen38_mk.cu` distributes the 48 DeltaNet value heads by the actual CTA count, including GPUs with fewer than 48 SMs. Projection, embedding, gate/up, output, and MTP kernels dispatch on each tensor's real type. Gate and up matrices may have different types and row strides. BF16/F16 alpha/beta values are widened to F32 before the existing norm folding.
+- IQ3_S, IQ3_XXS, and IQ4_XS use compile-time-specialized helpers to avoid repeated type dispatch. The existing Q6_K path is reused for MTP, whose eight matrices all use that type. IQ accumulators stay in registers until reduction completes, avoiding repeated local-memory traffic.
+- The cooperative grid uses `cooperative_groups::this_grid().sync()`. Attention initializes matrix padding and softmax factors; split-K is capped at the SM count. `NT=512` is retained because the layout depends on 16 warps.
+- `prefill.cuh` retains existing specialized GEMMs. New formats are dequantized one matrix at a time to FP16 and multiplied with cuBLAS using F32 accumulation and reusable buffers. Mixed gate/up types use two GEMMs and the same SiLU operation. Workspace size does not grow with layer count.
+- Five-token down projections use two K slices and register partial sums. Residual projections stop on non-finite values, preventing NaNs from silently becoming token IDs.
+- `MK_PREFILL_CHUNK` / `--prefill-chunk` accepts multiples of 128 from 128 to 2048. `auto` selects a chunk based on free VRAM (the former default was 512). Logit-scoring microbatches are capped by the actual `y0` capacity to avoid overflow at small chunks.
 
-Q6_K e Q8_0 conservam o repack existente; seus valores não são alterados.
-O dtype global `general.file_type` não substitui a inspeção por tensor.
-`mmproj` não é carregado: este backend continua sendo de texto e uma sequência.
+Q6_K and Q8_0 retain their existing repack, with values unchanged. The global `general.file_type` is not a substitute for per-tensor inspection. `mmproj` is not loaded: this backend is text-only and single-sequence.
 
-## Orçamento de VRAM
+## VRAM budget
 
-Valores para este GGUF, chunk 512 e draft vocab de 32768 + 4096 posições:
+The following measurements used this GGUF, prefill chunk 512, and a draft vocabulary of 32,768 plus 4,096 additional positions.
 
-| Componente | Memória |
+| Component | Memory |
 |---|---:|
-| Pesos, incluindo conversão alpha/beta e repack Q6 | 11,343 GiB |
-| Cópia restrita do output para draft | 0,099 GiB |
-| Estado DeltaNet F32 | 144 MiB |
-| Conv ring | 15 MiB |
-| Replay DeltaNet | 24,28 MiB |
-| Checkpoint | 159,31 MiB |
-| Buffers de prefill | aproximadamente 161,7 MiB |
-| Fallback IQ: pesos + input + output | 170 + 17 + 34 MiB |
-| KV F16, 17 slots | 69632 bytes/token |
-| KV Q8, incluindo escalas | 36992 bytes/token |
+| Weights, including alpha/beta conversion and Q6 repack | 11.343 GiB |
+| Restricted output copy for draft | 0.099 GiB |
+| DeltaNet F32 state | 144 MiB |
+| Convolution ring | 15 MiB |
+| DeltaNet replay | 24.28 MiB |
+| Checkpoint | 159.31 MiB |
+| Prefill buffers | about 161.7 MiB |
+| IQ fallback: weights + input + output | 170 + 17 + 34 MiB |
+| KV F16, 17 slots | 69,632 bytes/token |
+| KV Q8, including scales | 36,992 bytes/token |
 | RoPE | 256 bytes/token |
 
-Com contexto 4096/Q8, o logger mediu **12,297 GiB em alocações do engine** e
-aproximadamente **13,020 GiB de uso total visível ao CUDA**, incluindo runtime,
-cuBLAS e demais ocupantes. Os valores variam com processos existentes.
-Foram medidos **aproximadamente 14,01–14,03 GiB em 32768/Q8**, **15,016 GiB em 32768/F16** e
-**aproximadamente 15,14–15,16 GiB em 65536/Q8**. O modo `auto` escolheu F16 em 32768 e Q8 em
-65536. Com 65536, restaram aproximadamente 0,50 GiB livres: essa capacidade exige a
-GPU praticamente livre. A execução HTTP final marcou 14350/16380 MiB no nvidia-smi. O teste de 65536 carregou o cache completo e gerou
-a partir de um prompt curto; não valida qualidade em um prompt de 65536 tokens.
-O pedido de 262144/Q8 foi rejeitado antes do upload, com orçamento de 21,75 GiB.
+At 4,096 context with Q8, the logger measured **12.297 GiB** of engine allocations and about **13.020 GiB** of CUDA-visible total usage, including runtime, cuBLAS, and other occupants. Values vary with active processes. Approximate totals were 14.01–14.03 GiB at 32K/Q8, 15.016 GiB at 32K/F16, and 15.14–15.16 GiB at 65K/Q8. Auto chose F16 at 32K and Q8 at 65K. The 65K run left about 0.50 GiB free and required an otherwise idle GPU. A final HTTP run reported 14,350/16,380 MiB. The 65K test allocated the full cache but generated from a short prompt; it does **not** validate quality for a 65K-token prompt. A 262,144/Q8 request was rejected before upload because its estimate was 21.75 GiB.
 
-`--kv auto` compara a memória livre com o orçamento antes de carregar os pesos
-para decidir F16 ou Q8. Solicitações que não cabem são rejeitadas antes do
-upload; não ocorre offload implícito nem redução silenciosa do contexto. O
-orçamento inclui reserva de runtime, checkpoint e fallback cuBLAS. Desligar MTP
-pula o cálculo de draft e sua cópia do output, mas mantém os pesos do bloco MTP
-carregados para conservar a organização do engine.
+`--kv auto` compares free memory with the estimated budget and selects F16 or Q8 before loading weights. Requests that do not fit are rejected; the engine does not silently offload layers or reduce context. The estimate includes runtime, checkpoint, and cuBLAS fallback reserves. Disabling MTP skips draft computation and its output copy, but keeps MTP block weights loaded to preserve the engine layout.
 
-## Validação reproduzível
+## Reproducible validation
 
 ```sh
-make -C open-jet/megakernel ARCH=89 native_quant_test gguf_parser_test
-open-jet/megakernel/native_quant_test "$MODEL"
-open-jet/megakernel/gguf_parser_test
-python open-jet/megakernel/bench/ada_bench.py -m "$MODEL" \
+make -C megakernel ARCH=89 native_quant_test gguf_parser_test
+megakernel/native_quant_test "$MODEL"
+megakernel/gguf_parser_test
+python megakernel/bench/ada_bench.py -m "$MODEL" \
   --llama-server llama.cpp/build/bin/llama-server \
   --output /tmp/ada-benchmark --ctx 4096 --tokens 128 --reps 2 \
-  --drafts 0,1,2,3,4 \
-  --draft-vocab open-jet/megakernel/draft_vocab_32k.bin
+  --drafts 0,1,2,3,4 --draft-vocab megakernel/draft_vocab_32k.bin
 ```
 
-O teste CUDA atual compara 8.945.664 valores de linhas reais com os
-dequantizadores CPU independentes do llama.cpp, incluindo IQ16/dot products
-e o caminho Q6 após repack. A primeira versão conferia 5.038.080 valores.
-Os testes de backend/GGUF/build atuais passaram em 34/34 casos.
-`python open-jet/megakernel/tests/gpu_server_smoke.py --model "$MODEL" --output /tmp/ada-http` verifica
-sete casos reais de HTTP/CUDA, incluindo streaming, seed, segunda rodada e
-prompt de 1351 tokens. Compute Sanitizer memcheck passou sem erros nos três
-ciclos de decode instrumentados do binário final (teste curto de 16 tokens;
-isso não equivale a uma verificação exaustiva). O teste
-host cobre arquivos truncados e conversão de subnormais F16/BF16.
-O benchmark aquece o llama-server, entrega os mesmos IDs de prompt aos dois
-engines, registra todas as sequências, repetições e tempos, e faz teacher forcing
-da continuação de referência. `--temperature 1 --top-k 20 --top-p .95`
-permite repetir o caso com amostragem. Tempos de load e prefill ficam fora do throughput
-de decode. Aceitação MTP e custo de prefill devem ser comparados separadamente.
+The CUDA test compares 8,945,664 values from real rows with llama.cpp's independent CPU dequantizers, including IQ16 dot products and the repacked Q6 path. The earlier version checked 5,038,080 values. The backend/GGUF/build suite passed 34/34 tests. `gpu_server_smoke.py` checked seven real HTTP/CUDA cases, including streaming, seed, a second turn, and a 1,351-token prompt. Compute Sanitizer memcheck reported zero errors over three instrumented decode cycles in a 16-token test; this is not exhaustive. Host tests cover truncated files and F16/BF16 subnormal conversion.
 
-`MK_PROFILE=1` apresenta os tempos por fase; `MK_PF_PROFILE=1` mede prefill.
-`MK_CHECK_FINITE=1` identifica a primeira fase que apresentar valores não
-finitos; a instrumentação altera o timing e não deve ser usada para reportar
-throughput. Compute Sanitizer também deve ser separado dos benchmarks.
+The benchmark warms llama-server, sends the same prompt IDs to both engines, records sequences/repetitions/timing, and teacher-forces the reference continuation. `--temperature 1 --top-k 20 --top-p .95` enables sampling. Load and prefill are excluded from decode throughput and should be compared separately from acceptance.
 
-## Qualidade e limites
+`MK_PROFILE=1` reports per-phase times; `MK_PF_PROFILE=1` measures prefill. `MK_CHECK_FINITE=1` identifies the first phase producing non-finite values. These profiling modes alter timing and must not be used for throughput claims. Keep Compute Sanitizer runs separate from benchmarks.
 
-Os padrões do servidor correspondem aos metadados deste modelo: temperatura
-1, top_k 20, top_p 0,95 e min_p 0. O engine aceita top_k até 32. Penalidades não
-suportadas e top_k fora desse limite retornam erro, em vez de mudar a distribuição
-silenciosamente. Para comparação greedy, use temperatura 0 e penalidades neutras.
+## Quality and limits
 
-As dequantizações preservam os pesos, mas as ativações Q8 do decode e o prefill
-FP16 do engine original continuam aproximados. Igualdade de uma continuação não
-é prova geral de qualidade: corpora de perplexidade e prompts longos precisam
-ser avaliados antes de usar a adaptação como substituto universal do llama.cpp.
-Não houve treino nem alteração do GGUF.
+Server defaults match this model's GGUF metadata: temperature 1, top-k 20, top-p 0.95, and min-p 0. The engine supports top-k up to 32. Unsupported penalties and larger top-k values return errors rather than silently changing sampling. Use temperature 0 and neutral penalties for greedy comparisons.
 
-Os testes locais cobriram greedy, amostragem com seed fixa, streaming, segunda
-rodada e prefill atravessando os chunks. São testes de regressão numérica e
-funcional; não substituem uma avaliação ampla de perplexidade ou qualidade.
+Weight dequantization preserves the stored weights, but decode's Q8 activations and the original engine's FP16 prefill remain approximate. A matching continuation does not establish general quality. Perplexity corpora and long prompts require evaluation before treating this engine as a universal llama.cpp replacement. No training or GGUF modification was performed.
 
-## Resultados medidos na RTX 4060 Ti
+Local regression coverage included greedy, seeded sampling, streaming, a second turn, and prefill across chunks. These are functional/numerical checks, not a broad perplexity or quality evaluation.
 
-**Revisão do baseline em 2026-10-10:** a tabela abaixo conserva as medições
-iniciais, que usavam MTP 2 no llama.cpp. Novos testes com MTP 4 atingiram
-62,96 tok/s greedy curto, 61,93 sampling e 45,51 greedy longo. O megakernel
-fica respectivamente 23,49%, 23,73% e 12,27% abaixo dessas referências;
-no caso longo, as continuações diferem. Portanto os ganhos iniciais de
-4,6%/2,7% não demonstram vantagem sobre o llama.cpp ajustado.
+## RTX 4060 Ti performance and stability
 
-A nova referência greedy longa com MTP 4 é idêntica à referência sem
-especulação e diverge do megakernel/ref. MTP 2 a partir do índice 41.
-Teacher forcing concordou em 127/128 argmax, não 128/128. Ainda faltam
-isolamento da causa e avaliação ampla de qualidade. As afirmações de
-identidade abaixo se limitam às referências iniciais.
+The historical initial baseline used llama.cpp MTP 2. A later MTP 4 comparison reached 62.96 tok/s for short greedy, 61.93 for sampling, and 45.51 for long greedy. The megakernel was 23.49%, 23.73%, and 12.27% slower respectively; long continuations differed. The early 4.6%/2.7% gains therefore do not establish an advantage over tuned llama.cpp.
 
-O novo perfil atribui aproximadamente 59% do decode ao FFN e menos de 1%
-à atenção nesses prompts. Chunk 2048 elevou prefill de 530,5 para 630,2 tok/s
-com aproximadamente +0,629 GiB, mantendo decode em cerca de 40 tok/s.
-Diagnóstico, dados e próximas mudanças estão em
-[OPTIMIZATION_ANALYSIS.md](OPTIMIZATION_ANALYSIS.md) e
-[gráfico atualizado](bench/ada-report/ganhos_e_correcao.png).
+On the long MTP 4 greedy test, llama.cpp matched its no-speculation reference and diverged from the megakernel/MTP 2 reference. Teacher forcing agreed at 127/128, with the first disagreement at index 41. Cause isolation and broad quality evaluation remain open. The newer profile assigns about 59% of decode to the FFN and under 1% to attention for these prompts. Chunk 2048 improved prefill from 530.5 to 630.2 tok/s, used about 0.629 GiB more, and kept decode near 40 tok/s. See [`OPTIMIZATION_ANALYSIS.md`](OPTIMIZATION_ANALYSIS.md) and the benchmark notes.
 
-Referência: llama.cpp `aa94f2086` (build 11549), CUDA 13.4, sm_89, contexto
-4096/Q8, uma sequência. Clocks e voltage boost sem offsets no LACT; fan curve
-original preservada. Cada linha abaixo usa duas repetições de 128 tokens,
-exceto o baseline greedy com MTP, que usa três. O throughput exclui load e
-prefill; o primeiro token do megakernel é produzido pelo prefill.
+The reference was llama.cpp `aa94f2086` (build 11549), CUDA 13.4, `sm_89`, context 4096/Q8, single sequence. Clocks and voltage boost had no offsets in LACT; the original fan curve was retained. Rows below use two 128-token repetitions except the llama.cpp greedy MTP baseline, which uses three. Decode excludes load and prefill; megakernel's first token is produced by prefill.
 
-| Caso | llama-server | Megakernel | Observação |
+| Case | llama-server | Megakernel | Note |
 |---|---:|---:|---|
-| Greedy, prompt de código de 24 tokens, sem MTP | 20,92 tok/s | 16,42 tok/s | decode simples ainda favorece llama.cpp |
-| Mesmo prompt, MTP | 46,04 tok/s, draft 2 | 48,17 tok/s, draft 4 | ganho de aproximadamente 4,6% |
-| Amostragem temp=1, top_k=20, top_p=0,95, seed=123 | 46,01 tok/s, draft 2 | 47,24 tok/s, draft 4 | ganho de aproximadamente 2,7% |
-| Greedy, prompt de 1365 tokens, MTP | 40,91 tok/s, draft 2 | 39,93 tok/s, draft 4 | llama.cpp aproximadamente 2,5% mais rápido |
-| Prefill do prompt de 1365 tokens | aproximadamente 740 tok/s | aproximadamente 529 tok/s | fallback IQ limitado por workspace/dequantização |
+| Greedy, 24-token code prompt, no MTP | 20.92 tok/s | 16.42 tok/s | Plain decode favored llama.cpp |
+| Same prompt, MTP | 46.04 tok/s, depth 2 | 48.17 tok/s, depth 4 | About +4.6% |
+| Sampling, temp 1, top-k 20, top-p 0.95, seed 123 | 46.01 tok/s, depth 2 | 47.24 tok/s, depth 4 | About +2.7% |
+| Greedy, 1,365-token prompt, MTP | 40.91 tok/s, depth 2 | 39.93 tok/s, depth 4 | llama.cpp about 2.5% faster |
+| Prefill, 1,365-token prompt | about 740 tok/s | about 529 tok/s | IQ fallback limited by workspace/dequantization |
 
-No prompt curto, drafts 0/1/2/3/4 atingiram respectivamente
-16,42 / 28,67 / 39,33 / 46,64 / 48,17 tok/s. Todas as dez gerações greedy
-reproduziram exatamente os 128 IDs da referência. No prompt longo, as quatro
-gerações também reproduziram os 128 IDs. Teacher forcing concordou em 128/128
-nos dois prompts, inclusive com prefill chunk 128 no prompt longo. Com amostragem, os geradores de números aleatórios diferem
-entre motores; igualdade dos IDs não é um critério válido de equivalência de
-distribuição. A aceitação dos drafts depende fortemente do texto: caiu de cerca
-de 89% no prompt curto para 69% no longo.
+For the short prompt, depths 0/1/2/3/4 reached 16.42 / 28.67 / 39.33 / 46.64 / 48.17 tok/s. All ten greedy generations exactly reproduced the reference's 128 IDs. The four long greedy generations also matched the 128 reference IDs. Teacher forcing agreed 128/128 on both prompts, including long prefill at chunk 128. Sampling uses different RNG implementations, so identical sampled IDs are not a valid distribution-equivalence criterion. Draft acceptance fell from about 89% on the short prompt to 69% on the long prompt.
 
-O resumo com hashes das fontes/binários está em [bench/ada_summary.json](bench/ada_summary.json).
-Os dados, IDs, prompts, comandos e logs de desempenho estão em
-[bench/results-ada-validated](bench/results-ada-validated/results.json),
-[baseline com MTP](bench/results-ada-stock-mtp/results.json),
-[amostragem](bench/results-ada-sampling/results.json),
-[prompt longo](bench/results-ada-long/results.json),
-[HTTP](bench/results-ada-server/results.json) e
-[capacidade de memória](bench/results-ada-memory/results.json).
-`-d 4` é o padrão atual do servidor e do CLI; a profundidade cai para 3 após
-uma rejeição, como no algoritmo original. O CLI usava padrão 2 na adaptação
-inicial. Use `-d 4` explicitamente para reproduzir os benchmarks.
+The final kernel uses 512 threads/CTA, 128 registers/thread, and 92,544 bytes dynamic shared memory. It launches 34 cooperative CTAs (one per SM), with 16 resident warps per SM (about 33% occupancy). These constraints make increasing CTA count or changing NT without changing layouts unsafe. Projections and FFN dominate; compile-time-specialized IQ helpers and Q6_K specialization produced real gains. Some compile spills remain. Lowering register/spill pressure or writing workspace-free IQ prefill GEMMs are future work, not measured gains.
 
-O kernel final mantém 512 threads/CTA, 128 registradores/thread e 92544 bytes
-em shared memory dinâmica. São 34 CTAs cooperativas, uma por SM, com 16 warps
-residentes por SM (aproximadamente 33% de occupancy). Esses limites explicam
-por que aumentar CTAs ou reduzir NT sem alterar os layouts não é um ajuste
-seguro. O perfil identifica as projeções e o FFN como custos dominantes; os
-helpers com IQ fixado em compilação e o Q6_K especializado foram ganhos reais.
-Ainda há spills na compilação. Reduzir registradores/spills ou escrever GEMMs
-IQ de prefill sem workspace FP16 são próximos trabalhos, que exigem nova
-validação e não têm ganho presumido.
+## Clocks and stability
 
-## Clocks e estabilidade
+The initial LACT profile used +190 core and +1,200 memory offsets, voltage boost 8, and explicit clock limits. Illegal/misaligned accesses and corrupted generations appeared with that profile, including in llama.cpp MTP. With offsets reset to zero, repetitions were stable. An A/B test with the same binary passed three times at stock settings and failed once in two repetitions under the prior profile. This associates the issue with the clock configuration but does not isolate a single setting or certify general hardware stability.
 
-O perfil inicial do LACT tinha offsets de +190 no núcleo, +1200 na memória,
-voltage boost 8 e limites explícitos de clocks. Nesse perfil foram observados
-acessos ilegais/misaligned e gerações corrompidas, inclusive no MTP do llama.cpp.
-Ao zerar os offsets, as repetições ficaram estáveis. Um teste A/B com o mesmo
-binário passou três vezes em padrão e voltou a falhar em uma das duas repetições
-com o perfil original. Isso associa a falha à configuração de clocks; não
-isola qual ajuste é responsável nem certifica estabilidade geral do hardware.
-
-O usuário pediu **manter os clocks padrão**. A configuração foi aplicada pela
-[API do LACT](https://github.com/ilya-zlobintsev/LACT/blob/master/docs/API.md),
-confirmada e persistida; fan curve e PowerMizer Adaptive foram preservados.
-O backup e a evidência A/B estão em [results-ada-clocks](bench/results-ada-clocks/README.md).
-Os erros iniciais com o perfil anterior não constituem uma limitação comprovada
-do MTP do llama.cpp: com clocks padrão, ele passou as três repetições.
+The user requested stock clocks. They were restored and confirmed through the [LACT API](https://github.com/ilya-zlobintsev/LACT/blob/master/docs/API.md); the fan curve and PowerMizer Adaptive setting were preserved. The prior-profile failures are not established as an inherent llama.cpp MTP limitation: with stock clocks, it passed all three repeats.

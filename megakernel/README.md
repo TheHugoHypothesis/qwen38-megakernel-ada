@@ -3,7 +3,7 @@
 A specialised CUDA inference engine for Qwen3.8-27B GGUF (llama.cpp arch `qwen35`:
 48 Gated-DeltaNet + 16 gated-attention layers, one MTP block) on RTX 30, 40 and 50-series GPUs
 with 16 GB+ (sm_86, sm_89, sm_120; originally tuned on an RTX 3090), with an OpenAI-compatible server that open-jet uses in place of `llama-server`
-(`llama_backend: auto`, see [docs/runtimes/llama-cpp.md](../docs/runtimes/llama-cpp.md)).
+(`llama_backend: auto`; see the corresponding Open-Jet runtime documentation).
 
 The mixed IQ/K-quant GSQ-RCO model can be loaded on the RTX 4060 Ti 16 GB without
 requantizing its weights. See [Ada build, memory budget and validation](ADA_GSQ.md)

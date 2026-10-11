@@ -17,6 +17,8 @@ This repository snapshot contains the megakernel port source, build files, HTTP 
 
 ## What is included
 
+For a plain-language explanation of autoregressive inference, the megakernel, DeltaNet, mixed GSQ-RCO weights, KV caches, and DFlash2, see [Concepts](CONCEPTS.md).
+
 - The original persistent CUDA megakernel and prompt-prefill kernels in [`megakernel/qwen38_mk.cu`](megakernel/qwen38_mk.cu), [`megakernel/prefill.cuh`](megakernel/prefill.cuh), and [`megakernel/prefill_gemm.cuh`](megakernel/prefill_gemm.cuh).
 - Native CUDA DFlash2 draft implementation and verifier integration in [`megakernel/dflash_native.cu`](megakernel/dflash_native.cu), [`megakernel/dflash_bridge.cpp`](megakernel/dflash_bridge.cpp), and [`megakernel/dflash_main.cpp`](megakernel/dflash_main.cpp). It runs the five-layer DFlash2 draft natively, then verifies proposals against the target model.
 - Mixed IQ / K-quant weight decode, Q4/Q8 KV cache support, GGUF checks, server integration, tests, and benchmark scripts.

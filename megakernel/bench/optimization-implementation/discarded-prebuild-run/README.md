@@ -1,4 +1,3 @@
-# Execução descartada
+# Discarded pre-build run
 
-O A/B começou antes da conclusão do link do candidato. Foi interrompido,
-e seus valores não serão usados como evidência de desempenho ou corretude.
+The A/B test began before the candidate had finished linking. It was stopped. Its measurements are not used as evidence for performance or correctness.
