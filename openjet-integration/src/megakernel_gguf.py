@@ -52,7 +52,7 @@ def compatible_gguf(path: Path) -> bool:
             if read("I") != 0x46554747 or read("I") not in (2, 3):
                 return False
             tensors, fields = read("Q"), read("Q")
-            if tensors != 866 or fields > 1_000_000:
+            if tensors not in (851, 866) or fields > 1_000_000:
                 return False
             meta = {}
             for _ in range(fields):
@@ -62,11 +62,13 @@ def compatible_gguf(path: Path) -> bool:
                 v = value(kind, keep)
                 if keep:
                     meta[key] = v
-            expected = {"general.architecture":"qwen35", "qwen35.block_count":65,
+            expected = {"general.architecture":"qwen35", "qwen35.block_count":64+meta.get("qwen35.nextn_predict_layers",0),
                         "qwen35.embedding_length":5120,"qwen35.feed_forward_length":17408,
                         "qwen35.attention.head_count":24,"qwen35.attention.head_count_kv":4,
-                        "qwen35.ssm.state_size":128,"qwen35.nextn_predict_layers":1,
+                        "qwen35.ssm.state_size":128,
                         "qwen35.rope.dimension_sections":[11,11,10,0]}
+            if meta.get("qwen35.nextn_predict_layers",0) not in (0,1):
+                return False
             if any(meta.get(k) != v for k,v in expected.items()):
                 return False
             seen = {}
@@ -80,9 +82,12 @@ def compatible_gguf(path: Path) -> bool:
                 if kind not in supported or not all(dims) or offset > len(data):
                     return False
                 seen[name] = dims, kind
-            return (seen.get("token_embd.weight", (None,None))[0] == (5120,248320)
-                    and seen.get("output.weight", (None,None))[0] == (5120,248320)
+            emb = seen.get("token_embd.weight", (None,None))[0]
+            if not emb or len(emb)!=2 or emb[0]!=5120 or not 32<=emb[1]<=248320 or emb[1]%2:
+                return False
+            mtp = meta.get("qwen35.nextn_predict_layers",0)
+            return (seen.get("output.weight", (None,None))[0] == emb
                     and seen["output.weight"][1] in {8,12,13,14}
-                    and seen.get("blk.64.nextn.eh_proj.weight",(None,None))[0] == (10240,5120))
+                    and (seen.get("blk.64.nextn.eh_proj.weight",(None,None))[0] == (10240,5120) if mtp else not any(n.startswith("blk.64.") for n in seen)))
     except (OSError, ValueError, KeyError, struct.error, UnicodeError, OverflowError):
         return False

@@ -53,7 +53,7 @@
 
 namespace {
 
-constexpr int D = 5120, FF = 17408, VOCAB = 248320, NL = 64, NLA = 65;
+constexpr int D = 5120, FF = 17408, NL = 64, NLA = 65;
 constexpr int NH = 24, NKV = 4, HD = 256;
 constexpr int NKH = 16, NVH = 48, HK = 128;
 constexpr int QKV = 10240, VD = 6144, QG = 12288, KVD = 1024;
@@ -2250,6 +2250,8 @@ struct MKEngine::Impl {
         feature_sink(position,count,feature_host);
     }
     int ctx;
+    int vocab = 0;
+    int attention_slots = 16;
     int nsm = 0;
     float smp_temp = 0.f, smp_top_p = 1.f, smp_min_p = 0.f; // sampling (temp 0: greedy)
     int smp_top_k = TOPK_MAX;
@@ -2476,9 +2478,13 @@ struct MKEngine::Impl {
     int kv_mode; // KV cache format: 0 fp16, 1 q8_0, 2 q4_sym, -1 auto (q8_0 when fp16 does not fit)
     Impl(const std::string & path, int ctx_, int ndraft_, const std::string & draft_vocab, int kv_mode_,size_t external_workspace)
         : file(path), ctx(ctx_), ndraft(ndraft_), nd_avail(ndraft_), n_draft_max(ndraft_), kv_mode(kv_mode_) {
-        const size_t expected_weights = gguf::validate_qwen38(file);
+        const size_t expected_weights = gguf::validate_qwen38(file, ndraft > 0);
+        vocab = int(file.get("token_embd.weight").ne[1]);
+        attention_slots = 16 + (ndraft > 0);
+        if (ndraft && file.ints["qwen35.nextn_predict_layers"] != 1)
+            throw std::runtime_error("MTP drafting requested but the GGUF has no MTP block; use draft 0 or native DFlash2");
         if (file.strs["general.architecture"] != "qwen35") throw std::runtime_error("expected qwen35 architecture");
-        if (file.ints["qwen35.block_count"] != NLA || file.ints["qwen35.embedding_length"] != D)
+        if (file.ints["qwen35.embedding_length"] != D)
             throw std::runtime_error("unexpected model dimensions (this kernel is specialised for the 27B)");
         if (ctx <= 0 || ctx > int(file.ints["qwen35.context_length"])) throw std::runtime_error("invalid context length");
         if (kv_mode < -1 || kv_mode > 2) throw std::runtime_error("invalid KV mode");
@@ -2507,7 +2513,7 @@ struct MKEngine::Impl {
         const size_t per_token = 340000 + (native_prefill ? size_t(FF)*6 : 0);
         const size_t fixed = fixed_base + size_t(pf_cap)*per_token;
         const size_t draft_extra = ndraft && !draft_vocab.empty() ? size_t(192)*1024*1024 : 0;
-        const size_t rows=size_t(N_ATT_SLOTS)*NKV*ctx;
+        const size_t rows=size_t(attention_slots)*NKV*ctx;
         const size_t rope=size_t(ctx)*32*sizeof(float2);
         const size_t f16_bytes=kv_cache_bytes(0, rows, HD);
         if(kv_mode<0) kv_mode = expected_weights+fixed+draft_extra+rope+f16_bytes > free_bytes ? 1 : 0;
@@ -2577,7 +2583,7 @@ struct MKEngine::Impl {
             hw.shnorm = up_f32(blk(NL, "nextn.shared_head_norm.weight"), D);
         }
         hw.onorm = up_f32("output_norm.weight", D);
-        hw.head = up_mat("output.weight", D, VOCAB);
+        hw.head = up_mat("output.weight", D, vocab);
 
         hw.head_d = hw.head;
         hw.draft_ids = nullptr;
@@ -2587,7 +2593,7 @@ struct MKEngine::Impl {
             std::vector<int> ids;
             int id;
             while (fread(&id, 4, 1, f) == 1) {
-                if (id < 0 || id >= VOCAB) throw std::runtime_error("bad id in draft vocab");
+                if (id < 0 || id >= vocab) throw std::runtime_error("bad id in draft vocab");
                 ids.push_back(id);
             }
             fclose(f);
@@ -2610,11 +2616,11 @@ struct MKEngine::Impl {
             hw.draft_ids = did;
             dv_ids = ids;
             dv_base = (int) ids.size();
-            dv_in.assign(VOCAB, 0);
+            dv_in.assign(vocab, 0);
             for (int t : ids) dv_in[t] = 1;
             fprintf(stderr, "[mk] MTP draft head restricted to %d tokens (%s)\n", m.N, draft_vocab.c_str());
         }
-        hw.embedding = up_mat("token_embd.weight", D, VOCAB);
+        hw.embedding = up_mat("token_embd.weight", D, vocab);
         hw.embd = hw.embedding.w;
         CK(cudaMemcpyToSymbol(cW, &hw, sizeof(ModelW)));
 
@@ -2633,7 +2639,7 @@ struct MKEngine::Impl {
         hb.kvgb = dalloc<float>((size_t) 48 * KV_RING * KVGB);
         hb.dstate = dalloc<float>((size_t) 48 * NVH * 128 * 128);
         {
-            const size_t rows = (size_t) N_ATT_SLOTS * NKV * ctx;
+            const size_t rows = (size_t) attention_slots * NKV * ctx;
             hb.kv_mode = kv_mode;
             const size_t payload = rows * kv_payload_bytes(kv_mode, HD);
             hb.kc = dalloc<uint8_t>(payload);
@@ -2884,6 +2890,13 @@ struct MKEngine::Impl {
             }
         }
         const dim3 grid(m.N / pf::BM, (ntok + pf::BN - 1) / pf::BN);
+        if(m.N%pf::BM) {
+            if(m.type!=T_Q4K || mode!=pf::OUT_STORE)
+                throw std::runtime_error("unaligned prefill output requires Q4_K scoring");
+            const int row0=m.N/pf::BM*pf::BM;
+            pk_q4_head_tail<<<dim3(m.N-row0,ntok),256>>>(m,X,ntok,y,ldy,row0);
+            if(m.N<pf::BM)return;
+        }
         switch (m.type) {
             case T_Q4K: pf::mmh<pf::TQ4K><<<grid, 256, pf::hm_smem<pf::TQ4K>()>>>(W, X, ntok, O); break;
             case T_Q5K: pf::mmh<pf::TQ5K><<<grid, 256, pf::hm_smem<pf::TQ5K>()>>>(W, X, ntok, O); break;
@@ -3048,10 +3061,10 @@ struct MKEngine::Impl {
             emit_features(n,T);
             if (pred) {
                 pk_norm_quant<<<T, 256>>>(hp.x, hw.onorm);
-                const int score_cap = std::min(128, cap * FF / VOCAB);
+                const int score_cap = std::min(128, cap * FF / vocab);
                 for (int s = 0; s < T; s += score_cap) {
                     const int nt = std::min(score_cap, T - s);
-                    gemm(hw.head, nt, hp.y0, VOCAB, pf::OUT_STORE, s);
+                    gemm(hw.head, nt, hp.y0, vocab, pf::OUT_STORE, s);
                     pk_argmax<<<nt, 256>>>(s);
                     if(const char * probe=getenv("MK_SCORE_PROBE_POSITION")) {
                         char * end=nullptr;
@@ -3059,11 +3072,11 @@ struct MKEngine::Impl {
                         if(!end || *end || pos<0 || pos>=N)
                             throw std::runtime_error("invalid score probe position");
                         if(pos>=c0+s && pos<c0+s+nt) {
-                            std::vector<float> logits(VOCAB);
-                            CK(cudaMemcpy(logits.data(),hp.y0+size_t(pos-c0-s)*VOCAB,VOCAB*sizeof(float),cudaMemcpyDeviceToHost));
+                            std::vector<float> logits(vocab);
+                            CK(cudaMemcpy(logits.data(),hp.y0+size_t(pos-c0-s)*vocab,vocab*sizeof(float),cudaMemcpyDeviceToHost));
                             int first=0,second=1;
                             if(logits[second]>logits[first]) std::swap(first,second);
-                            for(int id=2;id<VOCAB;id++) {
+                            for(int id=2;id<vocab;id++) {
                                 if(logits[id]>logits[first]) { second=first; first=id; }
                                 else if(logits[id]>logits[second]) second=id;
                             }
@@ -3076,7 +3089,7 @@ struct MKEngine::Impl {
                             if(const char * path=getenv("MK_SCORE_PROBE_FILE")) {
                                 FILE * out=fopen(path,"wb");
                                 if(!out) throw std::runtime_error("cannot open score probe file");
-                                const bool ok=fwrite(logits.data(),sizeof(float),VOCAB,out)==VOCAB;
+                                const bool ok=fwrite(logits.data(),sizeof(float),vocab,out)==size_t(vocab);
                                 const bool closed=fclose(out)==0;
                                 if(!ok || !closed) throw std::runtime_error("cannot write score probe file");
                             }
@@ -3138,7 +3151,7 @@ int MKEngine::position() const { return p_->hctl.n; }
 
 int MKEngine::prefill(const std::vector<int> & tokens) {
     if (tokens.empty()) throw std::runtime_error("empty prompt");
-    for(int id:tokens) if(id<0 || id>=VOCAB) throw std::runtime_error("token id outside vocabulary");
+    for(int id:tokens) if(id<0 || id>=p_->vocab) throw std::runtime_error("token id outside vocabulary");
     Ctl & c = p_->hctl;
     CK(cudaMemcpy(&c, p_->hb.ctl, sizeof(Ctl), cudaMemcpyDeviceToHost));
     std::vector<int> & seq = p_->seq;
@@ -3213,7 +3226,7 @@ void MKEngine::truncate(int len) {
 
 std::vector<int> MKEngine::score(const std::vector<int> & tokens) {
     if(tokens.empty() || tokens.size()+8>size_t(p_->ctx)) throw std::runtime_error("invalid scoring sequence length");
-    for(int id:tokens) if(id<0 || id>=VOCAB) throw std::runtime_error("token id outside vocabulary");
+    for(int id:tokens) if(id<0 || id>=p_->vocab) throw std::runtime_error("token id outside vocabulary");
     reset();
     std::vector<int> pred;
     const char * mode = getenv("MK_PREFILL");
@@ -3264,7 +3277,7 @@ int MKEngine::verify_external(const std::vector<int> & proposals, std::vector<in
     if (n_draft_!=0) throw std::runtime_error("external proposals require internal MTP disabled");
     if (p_->seq.empty()) throw std::runtime_error("external verification requires prefill");
     if (proposals.size()>MAXT-1) throw std::runtime_error("at most seven external proposals are supported");
-    for (int id:proposals) if (id<0 || id>=VOCAB) throw std::runtime_error("proposal token outside vocabulary");
+    for (int id:proposals) if (id<0 || id>=p_->vocab) throw std::runtime_error("proposal token outside vocabulary");
     Ctl & c=p_->hctl;
     const int n0=c.n,T=1+int(proposals.size());
     if (n0+T+2>=p_->ctx) throw std::runtime_error("context full");
@@ -3323,8 +3336,8 @@ MKSharedWeights MKEngine::share_weights() {
     const ModelW previous=p_->hw;
     ggml_tensor * embedding=nullptr,* output=nullptr;
     try {
-        embedding=ggml_new_tensor_2d(p_->shared_ctx,GGML_TYPE_IQ2_S,D,VOCAB);
-        output=ggml_new_tensor_2d(p_->shared_ctx,GGML_TYPE_Q4_K,D,VOCAB);
+        embedding=ggml_new_tensor_2d(p_->shared_ctx,GGML_TYPE_IQ2_S,D,p_->vocab);
+        output=ggml_new_tensor_2d(p_->shared_ctx,GGML_TYPE_Q4_K,D,p_->vocab);
         ggml_set_name(embedding,"mk_shared_embedding");ggml_set_name(output,"mk_shared_output");
         p_->shared_buffer=ggml_backend_alloc_ctx_tensors_from_buft(p_->shared_ctx,ggml_backend_cuda_buffer_type(0));
         if (!p_->shared_buffer) throw std::runtime_error("cannot allocate shared CUDA weights");
@@ -3363,3 +3376,5 @@ std::vector<float> MKEngine::last_hidden() {
     CK(cudaMemcpy(h.data(), p_->hb.h_hist + (size_t) (pos % H_RING) * D, D * 4, cudaMemcpyDeviceToHost));
     return h;
 }
+
+int MKEngine::vocab_size() const { return p_->vocab; }

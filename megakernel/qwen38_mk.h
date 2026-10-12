@@ -63,6 +63,7 @@ class MKEngine {
     std::vector<float> last_hidden();
 
     int position() const;
+    int vocab_size() const;
     // Teacher-forced greedy predictions: pred[i] = argmax of the next-token distribution after
     // tokens[0..i] (resets the sequence).
     std::vector<int> score(const std::vector<int> & tokens);

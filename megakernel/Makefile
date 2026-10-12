@@ -41,7 +41,7 @@ tools/vocab_freq: tools/vocab_freq.cpp
 		-Wl,-rpath,'$$ORIGIN/../$(LLAMA)/build/bin' -o $@
 
 clean:
-	rm -f kv_quant_test kv_attention_test kv_attention_ptxas.log qwen38_mk libqwen38mk.so qwen38_mk.o dflash_native.o ptxas.log dflash_ptxas.log dflash_math_ptxas.log dflash_head_ptxas.log iq_mma_ptxas.log iq_ffn_ptxas.log tools/vocab_freq native_quant_test gguf_parser_test native_gemm_test iq_mma_test bench/iq_ffn_bench qwen38_dflash external_verify_test dflash_math_test dflash_head_test target_features_test
+	rm -f kv_quant_test kv_attention_test kv_attention_ptxas.log qwen38_mk libqwen38mk.so qwen38_mk.o dflash_native.o ptxas.log dflash_ptxas.log dflash_math_ptxas.log dflash_head_ptxas.log iq_mma_ptxas.log iq_ffn_ptxas.log tools/vocab_freq native_quant_test gguf_parser_test model_schema_test native_gemm_test iq_mma_test bench/iq_ffn_bench qwen38_dflash external_verify_test dflash_math_test dflash_head_test target_features_test
 
 # Native DFlash2 plus a selectable GGML reference for numerical validation.
 qwen38_dflash: qwen38_mk.o dflash_native.o dflash_main.cpp dflash_bridge.cpp dflash_bridge.h qwen38_mk.h $(LLAMA)/src/llama-model.h
@@ -66,6 +66,9 @@ native_quant_test: tests/native_quant.cu native_quant.cuh gguf.h $(LLAMA)/ggml/s
 		-L$(LLAMA)/build/bin -lggml-base -Xlinker -rpath -Xlinker '$$ORIGIN/$(LLAMA)/build/bin' -o $@
 
 gguf_parser_test: tests/gguf_parser.cpp gguf.h
+	$(CXX) -O2 -std=c++17 $< -o $@
+
+model_schema_test: tests/model_schema.cpp model_spec.h gguf.h
 	$(CXX) -O2 -std=c++17 $< -o $@
 
 native_gemm_test: tests/native_gemm.cu native_quant.cuh native_prefill.cuh prefill_gemm.cuh gguf.h

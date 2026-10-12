@@ -27,7 +27,8 @@ def check_draft(target,draft,llama_root):
         raise ValueError('draft feature taps are outside the target')
     for key in ('tokenizer.ggml.model','tokenizer.ggml.tokens','tokenizer.ggml.merges',
                 'tokenizer.ggml.bos_token_id','tokenizer.ggml.eos_token_id'):
-        if value(t,key)!=value(d,key): raise ValueError(f'target/draft differ: {key}')
+        if value(t,key)!=value(d,key):
+            raise ValueError(f'target/draft differ: {key}; an ASCII-condensed target requires a remapped DFlash2 draft from tools/prepare_condensed.py')
     return int(value(d,'dflash.block_size'))
 
 

@@ -33,7 +33,7 @@ For a plain-language explanation of autoregressive inference, the megakernel, De
 | Target | [`ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF`](https://huggingface.co/ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF) · `Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf`; non-uniform mixed precision, 3.55 BPW, about 11.28 GiB |
 | Draft | Separate Qwen3.8-27B DFlash2 `Q4_K_M` GGUF; about 1.05 GiB on disk, 5 draft blocks |
 | Target KV | Q8_0 or custom experimental signed Q4; DFlash2's sliding cache remains FP16 |
-| Tested context | Q4 target KV has been run with 72,000 context capacity; published speed sweep has populated prompts through 32,768 tokens |
+| Tested context | Original target: 72,000 capacity, speed sweep through 32,768 populated tokens. Condensed target: 96,000 capacity with native DFlash2/Q4, HTTP prompts through 2,791 tokens. |
 
 **Quantization distinction:** the target is the ISTA-DASLab **GSQ-RCO mixed-precision model**, not the standard Qwen3.8-27B `Q4_K_M` target. The file comes from the [`models--ISTA-DASLab--Qwen3.8-27B-GSQ-RCO-GGUF` model repository](https://huggingface.co/ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF). Its `IQ3_S` file-type label is an overall label; the 866 tensors use multiple formats, including IQ3_S, IQ3_XXS, IQ4_XS, IQ2 variants, Q2_K, Q4_K, Q6_K, F32, and BF16. GSQ-RCO uses non-uniform precision allocation designed to retain more quality at a low average bit rate. The megakernel loads these target tensors in their original formats and does not requantize target weights.
 
@@ -50,6 +50,34 @@ The chart compares native DFlash2 with Q8 and Q4 target KV. The prompt is a repe
 At 32,768 populated tokens, Q4 sampled 14,803 MiB versus Q8's 15,340 MiB, saving 537 MiB on the whole device. Decode measured 85.68 versus 85.21 tokens/s in this single sample. These values include display/background GPU memory and do not establish quality equivalence. See the detailed [benchmark README](megakernel/bench/context-scaling-showcase/README.md), [CSV](megakernel/bench/context-scaling-showcase/results.csv), and implementation notes [`ADA_GSQ.md`](megakernel/ADA_GSQ.md), [`DFLASH_NATIVE.md`](megakernel/DFLASH_NATIVE.md), and [`IMPLEMENTATION_RESULTS.md`](megakernel/IMPLEMENTATION_RESULTS.md).
 
 ## Build
+
+### ASCII-condensed target with native DFlash2
+
+The [PlinyTheMedium ASCII-condensed derivative](https://huggingface.co/PlinyTheMedium/Qwen3.8-27B-GSQ-RCO-ASCII-Condensed) uses 130,020 vocabulary entries. To use it with native DFlash2, prepare an MTP-free target and a matching draft: its remapped token IDs require gathering the draft's two vocabulary-indexed selector matrices. The preparation tool preserves stored quantized tensor bytes and verifies the exports; it does not retrain the draft or requantize the target.
+
+```bash
+python3 megakernel/tools/prepare_condensed.py \
+  --llama-root /path/to/llama.cpp \
+  --target /path/to/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp-ASCII-Condensed.gguf \
+  --draft /path/to/Qwen3.8-27B-DFlash2-Q4_K_M.gguf \
+  --source-target /path/to/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf \
+  --output-dir /path/to/prepared \
+  --expected-target-sha256 b18f585ee39446c0f8635dbc1c278d72a1530f133ae3b576e18e8156082b42f0
+```
+
+`--source-target` enables exhaustive checks against the original GSQ-RCO trunk and every retained vocabulary row. The tool writes a manifest and token-ID mapping and refuses to overwrite existing outputs. After building the port, launch the prepared pair:
+
+```bash
+python3 port_ada.py --engine megakernel-dflash2 \
+  --model /path/to/prepared/Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf \
+  --draft-model /path/to/prepared/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf \
+  --llama-root /path/to/llama.cpp \
+  --ctx 72000 --draft 7 --kv q4 --prefill-chunk 128
+```
+
+Native DFlash2 already skips MTP weight uploads; removing MTP from the file saves disk space, while vocabulary condensation and removing the unused MTP KV slot provide runtime VRAM savings. The prepared pair passed 13 HTTP/CUDA checks at **96,000 capacity/Q4**, using **14.934 GiB** of CUDA-visible memory with **0.721 GiB free**. The longest prompt in that run was 2,791 tokens; full-96K quality has not been established. Pruning changes tokenization and the target distribution, especially for non-ASCII text: a literal-copy test returned `cafÿ` for `café` in both MK and llama.cpp. Existing charts above use the original unpruned target. See the [implementation and validation record](megakernel/bench/dflash-port/27-ASCII-CONDENSED.md).
+
+### Compile the port
 
 Requirements: Linux, NVIDIA CUDA toolkit and driver, an Ada GPU, Python 3, and a local `llama.cpp` checkout/build. llama.cpp is used for GGUF/tokenizer support and shared libraries; the megakernel kernels and native DFlash2 implementation are in this repository. Build llama.cpp with CUDA enabled for Ada, then build the port:
 
@@ -98,6 +126,7 @@ Open-Jet provides the original Qwen3.8 CUDA megakernel and the foundation for th
 - **Native CUDA DFlash2 draft path:** a five-layer draft decoder with CUDA kernels captured in CUDA Graphs, GPU-side feature handling, selector/proposal generation, and integration with the megakernel target verifier. This is a native CUDA draft implementation, but the draft is **not fused into the target's persistent megakernel**. The llama.cpp/GGML implementation remains available as a reference path in the CLI.
 - **Speculative verification and state handling:** T=8 verification for up to seven proposals, rejection/replay coverage, shared target embedding/output storage, and server-side checkpoint/reset/rewind/truncation support.
 - **Ada-oriented kernel work:** packed mixed-IQ readers, DP4A paths, paired-row FFN processing, typed Q4_K/Q6_K draft MMQ, and the associated CPU/GPU oracles. Slower IMMA and pipeline candidates are retained as experiments or documented as rejected rather than presented as wins.
+- **ASCII-condensed model support:** a byte-preserving MTP-free export tool and DFlash2 selector/token-ID remapping for the PlinyTheMedium derivative. Vocabulary pruning itself is credited to that release and the bsaleh03 pruning tools.
 - **Memory and serving adaptations:** optional packed symmetric Q4 target KV to reduce cache capacity cost, Q8 as the default, VRAM preflight/runtime reporting, an Ada launcher, and Open-Jet/HTTP/C API integration. Q4 KV is lossy and is independent of target weight quantization.
 - **Validation and performance records:** RTX 4060 Ti benchmarks at stock clocks, context-scaling tools, output and verifier checks, API compatibility changes for Unsloth sampling/reasoning fields, and implementation journals. The recorded measurements show a small short-prompt advantage over the local llama.cpp/DFlash2 baseline but no demonstrated general throughput win; see the limitations and exact conditions in the benchmark notes.
 
@@ -105,21 +134,21 @@ The main entry points for reviewing these additions are [the GSQ-RCO/Ada impleme
 
 ## How to reference this work
 
-When citing the port or using its benchmark results, cite the GitHub repository containing this snapshot and identify the revision you used. Replace `<owner>` below with the GitHub account or organization that publishes this directory; do not cite the upstream Open-Jet project as the author of the Ada/DFlash2 additions.
+When citing the port or using its benchmark results, cite the GitHub repository containing this snapshot and identify the revision you used. Replace `<owner>` below with the GitHub account or organization that publishes this directory.
 
 **Suggested prose citation:**
 
-> Qwen3.8-27B CUDA Megakernel: Ada Port. (2026). RTX 4060 Ti adaptation of the Open-Jet Qwen3.8 megakernel with native CUDA DFlash2 and GSQ-RCO mixed-precision target support. GitHub repository, `<repository URL>` (commit `<commit SHA>`).
+> Qwen3.8-27B CUDA Megakernel: Ada Port. (2026). RTX 4060 Ti adaptation of the Open-Jet Qwen3.8 megakernel with native CUDA DFlash2 and GSQ-RCO mixed-precision target support. GitHub repository, `https://github.com/TheHugoHypothesis/qwen38-megakernel-ada/` (commit `<commit SHA>`).
 
 **BibTeX template:**
 
 ```bibtex
 @software{qwen38_megakernel_ada,
   title        = {Qwen3.8-27B CUDA Megakernel: Ada Port},
-  author       = {{<owner or contributor name>}},
+  author       = {Hugo Cardoso Ferreira de Araújo},
   year         = {2026},
-  url          = {<repository URL>},
-  version      = {<tag or commit SHA>},
+  url          = {https://github.com/TheHugoHypothesis/qwen38-megakernel-ada/},
+  version      = {v1.0},
   note         = {RTX 4060 Ti sm_89 port; target: ISTA-DASLab Qwen3.8-27B GSQ-RCO; native CUDA DFlash2 draft}
 }
 ```

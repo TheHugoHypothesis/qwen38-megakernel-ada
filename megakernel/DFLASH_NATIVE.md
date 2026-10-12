@@ -31,7 +31,7 @@ python3 open-jet/megakernel/serve_ada.py \
   --engine megakernel-dflash2 --kv q4 --ctx 65536 --prefill-chunk 128
 ```
 
-This cache uses symmetric signed INT4 and one FP16 scale per 32 values, then dequantizes tiles into the existing FP16 attention kernels. It is a custom cache layout, not GGML Q4_0. Target-cache storage decreases from 36,992 to 19,584 bytes per context position across 17 slots, saving 1.0625 GiB at 65,536 tokens. Preflight also includes the draft, workspaces, and CUDA/library reserve. Context length includes prompt and generated output; actual fit depends on available VRAM. Start below the desired maximum when other applications use the GPU.
+This cache uses symmetric signed INT4 and one FP16 scale per 32 values, then dequantizes tiles into the existing FP16 attention kernels. It is a custom cache layout, not GGML Q4_0. With internal MTP disabled, target-cache storage decreases from 34,816 to 18,432 bytes per context position across 16 slots, saving 1 GiB at 65,536 tokens. Earlier stage-26 measurements used 17 slots and recorded a 1.0625 GiB saving. Preflight also includes the draft, workspaces, and CUDA/library reserve. Context length includes prompt and generated output; actual fit depends on available VRAM. Start below the desired maximum when other applications use the GPU.
 
 Q4 is lossy and changes target logits; speculative verification follows that Q4 target distribution and does not reproduce Q8 behavior. Validation and measured trade-offs are in [stage 26](bench/dflash-port/26-Q4-TARGET-KV.md).
 
@@ -40,7 +40,7 @@ Q4 is lossy and changes target logits; speculative verification follows that Q4 
 | Component | Approximate allocation |
 |---|---:|
 | Target weights without MTP head | 11 GiB; omitting the MTP weights saves about 0.343 GiB |
-| Target Q8 KV | 17 slots × 4 heads × context × 544 bytes; about 144.5 MiB at 4K and 1.129 GiB at 32K |
+| Target Q8 KV | 16 slots × 4 heads × context × 544 bytes without internal MTP; 136 MiB at 4K and 1.0625 GiB at 32K |
 | DeltaNet state and checkpoint | about 144 MiB each |
 | Target convolution ring and checkpoint | about 30 MiB each |
 | Feature capture | 5 × 5120 × 4 bytes × prefill capacity; 12.5–200 MiB |

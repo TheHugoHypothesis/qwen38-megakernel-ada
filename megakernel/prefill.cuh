@@ -720,15 +720,35 @@ __global__ void __launch_bounds__(256) pk_mtp_in() {
     }
 }
 
-// argmax over logits rows y0[t][0..VOCAB) (scoring)
+// The packed prefill GEMM handles complete 128-row tiles. Condensed Q4 heads
+// need a bounded tail kernel for scoring; decode already processes row pairs.
+__global__ void pk_q4_head_tail(Mat m, const __half * x, int ntok, float * y, int ldy, int row0) {
+    const int row=row0+blockIdx.x, t=blockIdx.y, lane=threadIdx.x&31, warp=threadIdx.x>>5;
+    if(row>=m.N || t>=ntok)return;
+    float acc=0;
+    for(int e=threadIdx.x;e<m.K;e+=256) {
+        const float w=__half2float(__float2half_rn(dequant_q4k_ldg(m.w+size_t(row)*m.rb,e)));
+        const float a=__half2float(__ldg(x+size_t(t)*m.K+32*(e/32)+pf::hperm(e%32)));
+        acc=fmaf(w,a,acc);
+    }
+    acc=wsum(acc);
+    __shared__ float sums[8];
+    if(lane==0)sums[warp]=acc;
+    __syncthreads();
+    acc=threadIdx.x<8?sums[threadIdx.x]:0;
+    acc=wsum(acc);
+    if(threadIdx.x==0)y[size_t(t)*ldy+row]=acc;
+}
+
+// argmax over logits rows y0[t][0..cW.head.N) (scoring)
 __global__ void __launch_bounds__(256) pk_argmax(int t0) {
     __shared__ float bv[8];
     __shared__ int bi[8];
     const int t = blockIdx.x, lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
-    const float * l = cP.y0 + (size_t) t * VOCAB;
+    const float * l = cP.y0 + (size_t) t * cW.head.N;
     float b = -INFINITY;
     int ix = 0;
-    for (int i = threadIdx.x; i < VOCAB; i += 256)
+    for (int i = threadIdx.x; i < cW.head.N; i += 256)
         if (__ldg(l + i) > b) { b = __ldg(l + i); ix = i; }
 #pragma unroll
     for (int o = 16; o > 0; o >>= 1) {

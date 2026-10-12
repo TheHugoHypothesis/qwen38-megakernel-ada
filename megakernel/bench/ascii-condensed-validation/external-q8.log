@@ -1,0 +1,43 @@
+[mk] VRAM preflight: 11.60 GiB budget, 15.49 GiB free
+[mk] KV cache q8_0, 0.14 GB for 4096 positions
+[mk] weights 11.27 GB on device, 34 SMs, ctx 4096, n_draft 0, prefill chunk 128
+[mk] runtime VRAM: 11.214 GiB engine allocations, 11.981 GiB device used, 3.674 GiB free
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 16030 MiB):
+  Device 0: NVIDIA GeForce RTX 4060 Ti, compute capability 8.9, VMM: yes, VRAM: 16030 MiB
+PASS depth 0 rejection 0, scalar IDs and continued replay
+PASS depth 1 rejection 0, scalar IDs and continued replay
+PASS depth 1 rejection 1, scalar IDs and continued replay
+PASS depth 2 rejection 0, scalar IDs and continued replay
+PASS depth 2 rejection 1, scalar IDs and continued replay
+PASS depth 2 rejection 2, scalar IDs and continued replay
+PASS depth 3 rejection 0, scalar IDs and continued replay
+PASS depth 3 rejection 1, scalar IDs and continued replay
+PASS depth 3 rejection 2, scalar IDs and continued replay
+PASS depth 3 rejection 3, scalar IDs and continued replay
+PASS depth 4 rejection 0, scalar IDs and continued replay
+PASS depth 4 rejection 1, scalar IDs and continued replay
+PASS depth 4 rejection 2, scalar IDs and continued replay
+PASS depth 4 rejection 3, scalar IDs and continued replay
+PASS depth 4 rejection 4, scalar IDs and continued replay
+PASS depth 5 rejection 0, scalar IDs and continued replay
+PASS depth 5 rejection 1, scalar IDs and continued replay
+PASS depth 5 rejection 2, scalar IDs and continued replay
+PASS depth 5 rejection 3, scalar IDs and continued replay
+PASS depth 5 rejection 4, scalar IDs and continued replay
+PASS depth 5 rejection 5, scalar IDs and continued replay
+PASS depth 6 rejection 0, scalar IDs and continued replay
+PASS depth 6 rejection 1, scalar IDs and continued replay
+PASS depth 6 rejection 2, scalar IDs and continued replay
+PASS depth 6 rejection 3, scalar IDs and continued replay
+PASS depth 6 rejection 4, scalar IDs and continued replay
+PASS depth 6 rejection 5, scalar IDs and continued replay
+PASS depth 6 rejection 6, scalar IDs and continued replay
+PASS depth 7 rejection 0, scalar IDs and continued replay
+PASS depth 7 rejection 1, scalar IDs and continued replay
+PASS depth 7 rejection 2, scalar IDs and continued replay
+PASS depth 7 rejection 3, scalar IDs and continued replay
+PASS depth 7 rejection 4, scalar IDs and continued replay
+PASS depth 7 rejection 5, scalar IDs and continued replay
+PASS depth 7 rejection 6, scalar IDs and continued replay
+PASS depth 7 rejection 7, scalar IDs and continued replay
+PASS: shared IQ2_S/Q4_K bytes, invalid proposals, 614 feature callbacks and long chunked prefill

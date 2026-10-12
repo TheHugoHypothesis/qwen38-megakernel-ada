@@ -1,0 +1,26 @@
+[
+  {
+    "name": "case0",
+    "prompt": "Answer with just the integer: what is 17 + 28?"
+  },
+  {
+    "name": "case1",
+    "prompt": "Answer with just the integer: what is 12 times 13?"
+  },
+  {
+    "name": "case2",
+    "prompt": "Answer with just the integer: what is 144 divided by 12?"
+  },
+  {
+    "name": "case3",
+    "prompt": "Responda somente o inteiro: quanto é 19 + 23?"
+  },
+  {
+    "name": "case4",
+    "prompt": "Write a short Python function that returns the square of an integer."
+  },
+  {
+    "name": "case5",
+    "prompt": "Repeat exactly: café α → 中文 😀"
+  }
+]

@@ -1,0 +1,466 @@
+{
+  "checks": [
+    {
+      "check": "greedy_repeat",
+      "responses": [
+        {
+          "id": "chatcmpl-aac8a04f372d403fb28ce370ea6007e1",
+          "object": "chat.completion",
+          "created": 1791823096,
+          "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    Args:\n        n: The integer to test for primality.\n        \n    Returns:\n        True if n is a prime number, False otherwise."
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 64,
+            "total_tokens": 85,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "timings": {
+            "prompt_n": 21,
+            "prompt_ms": 524.646520614624,
+            "predicted_n": 64,
+            "predicted_ms": 681.0998916625977,
+            "predicted_per_second": 93.96565875788487
+          }
+        },
+        {
+          "id": "chatcmpl-fd08603d865f4d40b89028df25440a72",
+          "object": "chat.completion",
+          "created": 1791823097,
+          "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    Args:\n        n: The integer to test for primality.\n        \n    Returns:\n        True if n is a prime number, False otherwise."
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 64,
+            "total_tokens": 85,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "timings": {
+            "prompt_n": 21,
+            "prompt_ms": 461.6680145263672,
+            "predicted_n": 64,
+            "predicted_ms": 681.3383102416992,
+            "predicted_per_second": 93.93277764947126
+          }
+        }
+      ]
+    },
+    {
+      "check": "stream",
+      "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    Args:\n        n: The integer to test for primality.\n        \n    Returns:\n        True if n is a prime number, False otherwise."
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 1,
+      "response": {
+        "id": "chatcmpl-2101561f933643dda919946b5cfa590a",
+        "object": "chat.completion",
+        "created": 1791823099,
+        "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 1,
+          "total_tokens": 22,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.92431449890137,
+          "predicted_n": 1,
+          "predicted_ms": 0.031948089599609375,
+          "predicted_per_second": 31300.776119402984
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 2,
+      "response": {
+        "id": "chatcmpl-7eeab46447c840e39ac9d92c13d80d30",
+        "object": "chat.completion",
+        "created": 1791823099,
+        "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 2,
+          "total_tokens": 23,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.63320541381836,
+          "predicted_n": 2,
+          "predicted_ms": 54.27980422973633,
+          "predicted_per_second": 36.84611667969745
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 3,
+      "response": {
+        "id": "chatcmpl-eb061ea2b68f431fbfe36223ac0f78da",
+        "object": "chat.completion",
+        "created": 1791823100,
+        "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 3,
+          "total_tokens": 24,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.6401195526123,
+          "predicted_n": 3,
+          "predicted_ms": 65.01078605651855,
+          "predicted_per_second": 46.14618868616485
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 7,
+      "response": {
+        "id": "chatcmpl-e4d8a1210cf5445697a7c04ca5acce34",
+        "object": "chat.completion",
+        "created": 1791823100,
+        "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python\ndef is_prime(n"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 7,
+          "total_tokens": 28,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.6425037384033,
+          "predicted_n": 7,
+          "predicted_ms": 69.91052627563477,
+          "predicted_per_second": 100.12798319385048
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 8,
+      "response": {
+        "id": "chatcmpl-2b3c01a22cb94ceaa8674ffe76adcab3",
+        "object": "chat.completion",
+        "created": 1791823101,
+        "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python\ndef is_prime(n:"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 8,
+          "total_tokens": 29,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.63415908813477,
+          "predicted_n": 8,
+          "predicted_ms": 72.91579246520996,
+          "predicted_per_second": 109.7156010999539
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 9,
+      "response": {
+        "id": "chatcmpl-fdf0ea2396334b069a30a5895bd2a1e7",
+        "object": "chat.completion",
+        "created": 1791823101,
+        "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python\ndef is_prime(n: int"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 9,
+          "total_tokens": 30,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.7030620574951,
+          "predicted_n": 9,
+          "predicted_ms": 75.16622543334961,
+          "predicted_per_second": 119.73462746217528
+        }
+      }
+    },
+    {
+      "check": "seed_repeat",
+      "responses": [
+        {
+          "id": "chatcmpl-5580218f31534aac96facc642d7d5db5",
+          "object": "chat.completion",
+          "created": 1791823103,
+          "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    Args:\n        n: The integer to test for primality.\n        \n    Returns:\n        True if n is prime, False otherwise.\n    \"\"\""
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 64,
+            "total_tokens": 85,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "timings": {
+            "prompt_n": 21,
+            "prompt_ms": 461.7571830749512,
+            "predicted_n": 64,
+            "predicted_ms": 663.7570858001709,
+            "predicted_per_second": 96.42081624310929
+          }
+        },
+        {
+          "id": "chatcmpl-bc3af7b1d919493a87a1bc0221ac75c1",
+          "object": "chat.completion",
+          "created": 1791823104,
+          "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    Args:\n        n: The integer to test for primality.\n        \n    Returns:\n        True if n is prime, False otherwise.\n    \"\"\""
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 64,
+            "total_tokens": 85,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "timings": {
+            "prompt_n": 21,
+            "prompt_ms": 461.6711139678955,
+            "predicted_n": 64,
+            "predicted_ms": 663.8076305389404,
+            "predicted_per_second": 96.41347440980587
+          }
+        }
+      ]
+    },
+    {
+      "check": "unsupported_sampler",
+      "body": {
+        "presence_penalty": 1
+      },
+      "error": {
+        "error": {
+          "message": "presence_penalty is not supported by the megakernel; set presence_penalty=0 in the client's Sampling settings. Use the llama.cpp backend to keep nonzero penalties.",
+          "type": "invalid_request_error"
+        }
+      }
+    },
+    {
+      "check": "unsupported_sampler",
+      "body": {
+        "temperature": 0.7,
+        "top_k": 40
+      },
+      "error": {
+        "error": {
+          "message": "top_k must be in [1, 32] for non-greedy sampling",
+          "type": "invalid_request_error"
+        }
+      }
+    },
+    {
+      "check": "second_turn",
+      "response": {
+        "id": "chatcmpl-a25a91354bdc423dbc77b98d5128effc",
+        "object": "chat.completion",
+        "created": 1791823105,
+        "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "# Time Complexity of the Primality Test\n\n## The Algorithm\n\n```python\ndef is_prime(n: int) -> bool:\n    if n < 2:\n        return False\n    if n == 2:\n        return True\n    if n % 2 == 0:\n        return"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 104,
+          "completion_tokens": 64,
+          "total_tokens": 168,
+          "prompt_tokens_details": {
+            "cached_tokens": 21
+          }
+        },
+        "timings": {
+          "prompt_n": 83,
+          "prompt_ms": 481.80508613586426,
+          "predicted_n": 64,
+          "predicted_ms": 758.3832740783691,
+          "predicted_per_second": 84.39004681079824
+        }
+      }
+    },
+    {
+      "check": "prefill_chunk_boundary",
+      "response": {
+        "id": "chatcmpl-e3d08bbf876743d28813d9ee6e2a1cb0",
+        "object": "chat.completion",
+        "created": 1791823115,
+        "model": "Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "All 240 records, numbered from 0 to 239, contain the identical sequence of words \"alpha beta gamma delta.\""
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 2791,
+          "completion_tokens": 30,
+          "total_tokens": 2821,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 2791,
+          "prompt_ms": 9701.48754119873,
+          "predicted_n": 30,
+          "predicted_ms": 550.1163005828857,
+          "predicted_per_second": 54.53392304175127
+        }
+      }
+    }
+  ],
+  "command": [
+    "/usr/bin/python3",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/server/mk_server.py",
+    "-m",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+    "-c",
+    "96000",
+    "--kv",
+    "q4",
+    "-d",
+    "7",
+    "--prefill-chunk",
+    "128",
+    "--port",
+    "18102",
+    "--draft-model",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf",
+    "--lib",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/libqwen38mk.so"
+  ],
+  "nvidia_memory_mib": "15337, 16380"
+}

@@ -260,29 +260,29 @@ __device__ void best_reduce(float & value,int & id) {
     for(int off=16;off;off/=2){const float v=__shfl_down_sync(0xffffffff,value,off);const int k=__shfl_down_sync(0xffffffff,id,off);
         if(lane+off<32&&(v>value||(v==value&&k<id))){value=v;id=k;}}
 }
-__global__ void top_partial(const float * logits,float2 * partial,int blocks) {
+__global__ void top_partial(const float * logits,float2 * partial,int blocks,int vocab) {
     const int id0=blockIdx.x*256+threadIdx.x,t=blockIdx.y;
-    float own=id0<VOCAB?logits[size_t(t)*VOCAB+id0]:-INFINITY;
+    float own=id0<vocab?logits[size_t(t)*vocab+id0]:-INFINITY;
     __shared__ float vals[8];__shared__ int ids[8],selected;
     for(int j=0;j<TOP;j++) {
         float v=own;int id=id0;best_reduce(v,id);
         if(threadIdx.x%32==0){vals[threadIdx.x/32]=v;ids[threadIdx.x/32]=id;}__syncthreads();
-        if(threadIdx.x<32){v=threadIdx.x<8?vals[threadIdx.x]:-INFINITY;id=threadIdx.x<8?ids[threadIdx.x]:VOCAB;
+        if(threadIdx.x<32){v=threadIdx.x<8?vals[threadIdx.x]:-INFINITY;id=threadIdx.x<8?ids[threadIdx.x]:vocab;
             best_reduce(v,id);if(threadIdx.x==0){partial[(size_t(t)*blocks+blockIdx.x)*TOP+j]=make_float2(v,float(id));selected=id;}}
         __syncthreads();if(id0==selected)own=-INFINITY;__syncthreads();
     }
 }
-__global__ void top_finish(const float2 * partial,float * lattice,float * unary,int blocks) {
+__global__ void top_finish(const float2 * partial,float * lattice,float * unary,int blocks,int vocab) {
     const int t=blockIdx.x;__shared__ int used[TOP],ids[8];__shared__ float vals[8];
     for(int j=0;j<TOP;j++) {
-        float v=-INFINITY;int id=VOCAB;
+        float v=-INFINITY;int id=vocab;
         for(int i=threadIdx.x;i<blocks*TOP;i+=256) {
             const auto p=partial[size_t(t)*blocks*TOP+i];bool skip=false;
             for(int k=0;k<j;k++)skip|=int(p.y)==used[k];
             if(!skip&&(p.x>v||(p.x==v&&int(p.y)<id))){v=p.x;id=int(p.y);}
         }
         best_reduce(v,id);if(threadIdx.x%32==0){vals[threadIdx.x/32]=v;ids[threadIdx.x/32]=id;}__syncthreads();
-        if(threadIdx.x<32){v=threadIdx.x<8?vals[threadIdx.x]:-INFINITY;id=threadIdx.x<8?ids[threadIdx.x]:VOCAB;
+        if(threadIdx.x<32){v=threadIdx.x<8?vals[threadIdx.x]:-INFINITY;id=threadIdx.x<8?ids[threadIdx.x]:vocab;
             best_reduce(v,id);if(threadIdx.x==0){used[j]=id;lattice[size_t(t+1)*D+j]=float(id);unary[t*TOP+j]=v;}}
         __syncthreads();
     }
@@ -318,6 +318,7 @@ struct MKDFlashNative::Impl {
     std::vector<int> taps{6,20,34,48,62};
     Matrix embed{},head{},fc{},hidden{},prev{},next{};
     const float * enc_norm=nullptr,* out_norm=nullptr;
+    int vocab=0;
     int context=0,mask=0,chunk=512,end=0,checkpoint_end=-1,last_n=0;
     bool use_graph=true,use_q8=true;
     bool typed_mmq=true;
@@ -363,7 +364,9 @@ struct MKDFlashNative::Impl {
         if(use_q8){
             dn::quant_input<<<(T*w.K/32+3)/4,128,0,stream>>>(src,quantized_input,quantized_scale,w.K,T);
             if(typed_mmq) {
-                const int rows=w.N==dn::VOCAB ? head_rows : mmq_rows;
+                const int requested=w.w==head.w ? head_rows : mmq_rows;
+                // Condensed vocabularies may be even without being divisible by four.
+                const int rows=w.N%4 ? 2 : requested;
                 if(rows==4) {
                     if(w.type==12)dn::mmq_typed<T,12,4><<<(w.N+15)/16,128,0,stream>>>(w,quantized_input,quantized_scale,dst);
                     else dn::mmq_typed<T,14,4><<<(w.N+15)/16,128,0,stream>>>(w,quantized_input,quantized_scale,dst);
@@ -461,9 +464,9 @@ struct MKDFlashNative::Impl {
         norm<<<n,256,0,stream>>>(x,out_norm,xn,D,n);
         trace("result_norm",-1,xn,n*D);
         multiply(head,xn+D,logits,n-1);multiply(hidden,xn,gate,n);
-        constexpr int nb=(VOCAB+255)/256;
-        top_partial<<<dim3(nb,n-1),256,0,stream>>>(logits,top_part,nb);
-        top_finish<<<n-1,256,0,stream>>>(top_part,packed,unary,nb);
+        const int nb=(vocab+255)/256;
+        top_partial<<<dim3(nb,n-1),256,0,stream>>>(logits,top_part,nb,vocab);
+        top_finish<<<n-1,256,0,stream>>>(top_part,packed,unary,nb,vocab);
         selector<<<dim3(TOP*TOP,n-1),256,0,stream>>>(prev,next,gate,unary,packed,ctl);
         walk<<<1,1,0,stream>>>(packed,proposal_ids,n-1);
     }
@@ -472,7 +475,9 @@ struct MKDFlashNative::Impl {
 
 MKDFlashNative::MKDFlashNative(MKEngine & target,const std::string & path,int context,int mask,int chunk):p_(new Impl) {
     using namespace dn;
-    if(context<16||mask<0||mask>=VOCAB||chunk<8||chunk>2048)throw std::runtime_error("invalid native draft configuration");
+    const int vocab = target.vocab_size();
+    p_->vocab=vocab;
+    if(context<16||mask<0||mask>=vocab||chunk<8||chunk>2048)throw std::runtime_error("invalid native draft configuration");
     p_->context=context;p_->mask=mask;p_->chunk=chunk;
     if(const char * s=std::getenv("MK_DFLASH_GRAPH"))p_->use_graph=std::strcmp(s,"0")!=0;
     if(std::getenv("MK_DFLASH_TRACE"))p_->use_graph=false;
@@ -491,6 +496,8 @@ MKDFlashNative::MKDFlashNative(MKEngine & target,const std::string & path,int co
     gguf::File file(path);
     if(file.strs.at("general.architecture")!="dflash"||file.tensors.size()!=81)
         throw std::runtime_error("native draft expects the validated 81-tensor DFlash2 schema");
+    if(file.array_sizes.at("tokenizer.ggml.tokens")!=size_t(vocab))
+        throw std::runtime_error("native draft vocabulary size differs; prepare a remapped condensed draft first");
     for(auto pair:{std::pair<const char *,uint64_t>{"dflash.embedding_length",D},
         {"dflash.block_count",NL},{"dflash.feed_forward_length",FF},{"dflash.block_size",8},
         {"dflash.attention.head_count",32},{"dflash.attention.head_count_kv",8},
@@ -512,12 +519,12 @@ MKDFlashNative::MKDFlashNative(MKEngine & target,const std::string & path,int co
     const auto shared=target.share_weights();
     if(shared.embedding->type!=GGML_TYPE_IQ2_S||shared.output->type!=GGML_TYPE_Q4_K)
         throw std::runtime_error("native draft unsupported shared weights");
-    p_->embed={static_cast<const uint8_t *>(shared.embedding->data),D,VOCAB,22,int(gguf::type_row_bytes(22,D))};
-    p_->head={static_cast<const uint8_t *>(shared.output->data),D,VOCAB,12,int(gguf::type_row_bytes(12,D))};
+    p_->embed={static_cast<const uint8_t *>(shared.embedding->data),D,vocab,22,int(gguf::type_row_bytes(22,D))};
+    p_->head={static_cast<const uint8_t *>(shared.output->data),D,vocab,12,int(gguf::type_row_bytes(12,D))};
     p_->fc=p_->load_matrix(file,"fc.weight",5*D,D);
     p_->hidden=p_->load_matrix(file,"selector_hidden.weight",D,RANK);
-    p_->prev=p_->load_matrix(file,"selector_predecessor.weight",RANK,VOCAB);
-    p_->next=p_->load_matrix(file,"selector_successor.weight",RANK,VOCAB);
+    p_->prev=p_->load_matrix(file,"selector_predecessor.weight",RANK,vocab);
+    p_->next=p_->load_matrix(file,"selector_successor.weight",RANK,vocab);
     p_->enc_norm=p_->load_float(file,"enc.output_norm.weight",D);
     p_->out_norm=p_->load_float(file,"output_norm.weight",D);
     for(int i=0;i<NL;i++) {
@@ -537,9 +544,9 @@ MKDFlashNative::MKDFlashNative(MKEngine & target,const std::string & path,int co
     p_->x=small(D);p_->xn=small(D);p_->temp=small(D);p_->temp2=small(D);p_->residual=small(D);
     p_->dynamic=small(1280);p_->fg=small(FF);p_->fu=small(FF);p_->act=small(FF);
     p_->q=small(QD);p_->k=p_->allocate<float>(size_t(chunk)*KD);p_->v=p_->allocate<float>(size_t(chunk)*KD);p_->attn=small(QD);
-    p_->logits=small(VOCAB);p_->gate=small(RANK);p_->unary=small(TOP);p_->packed=small(D);
+    p_->logits=small(vocab);p_->gate=small(RANK);p_->unary=small(TOP);p_->packed=small(D);
     p_->partial=p_->allocate<float>(MAXT*32*8*HD);p_->stats=p_->allocate<float2>(MAXT*32*8);
-    p_->top_part=p_->allocate<float2>(size_t(MAXT)*(VOCAB+255)/256*TOP);
+    p_->top_part=p_->allocate<float2>(size_t(MAXT)*((vocab+255)/256)*TOP);
     p_->proposal_ids=p_->allocate<int>(7);p_->ctl=p_->allocate<Control>(1);
     p_->cache_k=p_->allocate<__half>(Impl::CACHE_ELEMENTS);p_->cache_v=p_->allocate<__half>(Impl::CACHE_ELEMENTS);
     p_->noise_k=p_->allocate<__half>(MAXT*KD);p_->noise_v=p_->allocate<__half>(MAXT*KD);
@@ -585,7 +592,7 @@ void MKDFlashNative::inject_device(int pos,int n,const float * f) {
     injection_seconds+=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
 }
 std::vector<int> MKDFlashNative::draft(int pos,int anchor,int depth) {
-    if(pos!=p_->end||pos<0||depth<1||depth>7||pos+depth>=p_->context||anchor<0||anchor>=dn::VOCAB)
+    if(pos!=p_->end||pos<0||depth<1||depth>7||pos+depth>=p_->context||anchor<0||anchor>=p_->vocab)
         throw std::runtime_error("native draft invalid position/token/depth");
     const auto start=std::chrono::steady_clock::now();const int n=depth+1;
     const dn::Control ctl{pos,anchor};DC(cudaMemcpyAsync(p_->ctl,&ctl,sizeof(ctl),cudaMemcpyHostToDevice,p_->stream));
@@ -599,7 +606,7 @@ std::vector<int> MKDFlashNative::draft(int pos,int anchor,int depth) {
     } else p_->run(n);
     std::vector<int> ids(depth);DC(cudaMemcpyAsync(ids.data(),p_->proposal_ids,depth*4,cudaMemcpyDeviceToHost,p_->stream));
     DC(cudaGetLastError());DC(cudaStreamSynchronize(p_->stream));
-    for(int id:ids)if(id<0||id>=dn::VOCAB)throw std::runtime_error("native draft selector returned invalid ID");
+    for(int id:ids)if(id<0||id>=p_->vocab)throw std::runtime_error("native draft selector returned invalid ID");
     p_->last_n=n;draft_seconds+=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();return ids;
 }
 std::vector<float> MKDFlashNative::lattice() const {

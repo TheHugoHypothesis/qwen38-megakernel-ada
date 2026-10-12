@@ -66,7 +66,7 @@ int main(int argc,char ** argv) {
             engine.reset();next_position=0;
             std::vector<int> got{engine.prefill(prompt)};
             std::vector<int> proposals(reference.begin()+1,reference.begin()+1+depth);
-            if (rejected<depth) proposals[rejected]=(proposals[rejected]+1)%248320;
+            if (rejected<depth) proposals[rejected]=(proposals[rejected]+1)%engine.vocab_size();
             engine.verify_external(proposals,got);
             require(engine.stats.accepted==rejected,"unexpected first rejection position");
             require(got.size()==size_t(rejected+2),"incorrect accepted prefix plus bonus");
@@ -81,7 +81,7 @@ int main(int argc,char ** argv) {
         }
         }
         const auto before=engine.sequence();
-        for (auto invalid:{std::vector<int>{-1},std::vector<int>{248320},std::vector<int>(8,0)}) {
+        for (auto invalid:{std::vector<int>{-1},std::vector<int>{engine.vocab_size()},std::vector<int>(8,0)}) {
             bool rejected=false;std::vector<int> out;
             try { engine.verify_external(invalid,out); } catch (const std::runtime_error &) { rejected=true; }
             require(rejected && engine.sequence()==before,"invalid proposal mutated sequence");

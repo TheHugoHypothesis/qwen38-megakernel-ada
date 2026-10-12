@@ -81,6 +81,7 @@ struct File {
     std::map<std::string, std::string> strs;
     std::map<std::string, double> reals;
     std::map<std::string, std::vector<uint64_t>> arrays;
+    std::map<std::string, uint64_t> array_sizes;
 
     explicit File(const std::string & path) {
         int fd = open(path.c_str(), O_RDONLY);
@@ -119,6 +120,7 @@ struct File {
             case 9: {
                 uint32_t et = rd<uint32_t>();
                 uint64_t n = rd<uint64_t>();
+                if (top) array_sizes[key] = n;
                 if (n > size || et == 9) throw std::runtime_error("invalid GGUF array");
                 for (uint64_t i = 0; i < n; i++) {
                     if (top && et == 4) arrays[key].push_back(rd<uint32_t>());

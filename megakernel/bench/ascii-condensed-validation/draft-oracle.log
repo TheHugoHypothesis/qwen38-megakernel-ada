@@ -1,0 +1,914 @@
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 16030 MiB):
+  Device 0: NVIDIA GeForce RTX 4060 Ti, compute capability 8.9, VMM: yes, VRAM: 16030 MiB
+llama_model_loader: loaded meta data with 53 key-value pairs and 851 tensors from models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf (version GGUF V3 (latest))
+llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
+llama_model_loader: - kv   0:                       general.architecture str              = qwen35
+llama_model_loader: - kv   1:                               general.name str              = Qwen3.8-27B GSQ-RCO ASCII Condensed (...
+llama_model_loader: - kv   2:                           general.basename str              = Qwen3.8-27B
+llama_model_loader: - kv   3:                       general.quantized_by str              = ISTA DASLab
+llama_model_loader: - kv   4:                           general.repo_url str              = https://huggingface.co/ISTA-DASLab
+llama_model_loader: - kv   5:                            general.license str              = apache-2.0
+llama_model_loader: - kv   6:                               general.tags arr[str,2]       = ["gsq-rco", "ista-daslab"]
+llama_model_loader: - kv   7:                        general.description str              = GSQ-RCO non-uniform mixed-precision G...
+llama_model_loader: - kv   8:                   general.base_model.count i64              = 1
+llama_model_loader: - kv   9:                  general.base_model.0.name str              = Qwen3.8 27B
+llama_model_loader: - kv  10:          general.base_model.0.organization str              = Qwen
+llama_model_loader: - kv  11:              general.base_model.0.repo_url str              = https://huggingface.co/Qwen/Qwen3.8-27B
+llama_model_loader: - kv  12:                               general.type str              = model
+llama_model_loader: - kv  13:                     general.sampling.top_k i64              = 20
+llama_model_loader: - kv  14:                     general.sampling.top_p f32              = 0.950000
+llama_model_loader: - kv  15:                     general.sampling.min_p f32              = 0.000000
+llama_model_loader: - kv  16:                      general.sampling.temp f32              = 1.000000
+llama_model_loader: - kv  17:                         general.size_label str              = 27B
+llama_model_loader: - kv  18:                         qwen35.block_count u32              = 64
+llama_model_loader: - kv  19:                      qwen35.context_length u32              = 262144
+llama_model_loader: - kv  20:                    qwen35.embedding_length u32              = 5120
+llama_model_loader: - kv  21:                 qwen35.feed_forward_length u32              = 17408
+llama_model_loader: - kv  22:                qwen35.attention.head_count u32              = 24
+llama_model_loader: - kv  23:             qwen35.attention.head_count_kv u32              = 4
+llama_model_loader: - kv  24:             qwen35.rope.dimension_sections arr[i32,4]       = [11, 11, 10, 0]
+llama_model_loader: - kv  25:                      qwen35.rope.freq_base f32              = 10000000.000000
+llama_model_loader: - kv  26:    qwen35.attention.layer_norm_rms_epsilon f32              = 0.000001
+llama_model_loader: - kv  27:                qwen35.attention.key_length u32              = 256
+llama_model_loader: - kv  28:              qwen35.attention.value_length u32              = 256
+llama_model_loader: - kv  29:                     qwen35.ssm.conv_kernel u32              = 4
+llama_model_loader: - kv  30:                      qwen35.ssm.state_size u32              = 128
+llama_model_loader: - kv  31:                     qwen35.ssm.group_count u32              = 16
+llama_model_loader: - kv  32:                  qwen35.ssm.time_step_rank u32              = 48
+llama_model_loader: - kv  33:                      qwen35.ssm.inner_size u32              = 6144
+llama_model_loader: - kv  34:             qwen35.full_attention_interval u32              = 4
+llama_model_loader: - kv  35:                qwen35.rope.dimension_count u32              = 64
+llama_model_loader: - kv  36:                       tokenizer.ggml.model str              = gpt2
+llama_model_loader: - kv  37:                         tokenizer.ggml.pre str              = qwen35
+llama_model_loader: - kv  38:                      tokenizer.ggml.tokens arr[str,130020]  = ["!", "\"", "#", "$", "%", "&", "'", ...
+llama_model_loader: - kv  39:                  tokenizer.ggml.token_type arr[i32,130020]  = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...
+llama_model_loader: - kv  40:                      tokenizer.ggml.merges arr[str,129463]  = ["Ġ Ġ", "ĠĠ ĠĠ", "i n", "Ġ t",...
+llama_model_loader: - kv  41:                tokenizer.ggml.eos_token_id u32              = 129746
+llama_model_loader: - kv  42:            tokenizer.ggml.padding_token_id u32              = 129744
+llama_model_loader: - kv  43:                tokenizer.ggml.bos_token_id u32              = 129744
+llama_model_loader: - kv  44:               tokenizer.ggml.add_bos_token bool             = false
+llama_model_loader: - kv  45:                    tokenizer.chat_template str              = {%- set image_count = namespace(value...
+llama_model_loader: - kv  46:                      quantize.imatrix.file str              = imatrix-qwen3.8-27b.gguf
+llama_model_loader: - kv  47:                   quantize.imatrix.dataset str              = calib_qwen3.8-27b.tokids
+llama_model_loader: - kv  48:             quantize.imatrix.entries_count i64              = 496
+llama_model_loader: - kv  49:              quantize.imatrix.chunks_count i64              = 1000
+llama_model_loader: - kv  50:                          general.file_type u32              = 26
+llama_model_loader: - kv  51:               general.quantization_version i64              = 2
+llama_model_loader: - kv  52:                qwen35.nextn_predict_layers u32              = 0
+llama_model_loader: - type  f32:  353 tensors
+llama_model_loader: - type q2_K:   13 tensors
+llama_model_loader: - type q4_K:   39 tensors
+llama_model_loader: - type iq2_xxs:    5 tensors
+llama_model_loader: - type iq2_xs:    9 tensors
+llama_model_loader: - type iq3_xxs:   78 tensors
+llama_model_loader: - type iq3_s:  144 tensors
+llama_model_loader: - type iq2_s:   17 tensors
+llama_model_loader: - type iq4_xs:   96 tensors
+llama_model_loader: - type iq1_m:    1 tensors
+llama_model_loader: - type bf16:   96 tensors
+print_info: file format = GGUF V3 (latest)
+print_info: file type   = IQ3_S - 3.4375 bpw
+print_info: file size   = 10.45 GiB (3.50 BPW) 
+llama_prepare_model_devices: using device CUDA0 (NVIDIA GeForce RTX 4060 Ti) (0000:01:00.0) - 15862 MiB free
+init_tokenizer: initializing tokenizer for type 2
+load: 0 unused tokens
+load: control token: 129776 '<|audio_pad|>' is not marked as EOG
+load: control token: 129770 '<|audio_start|>' is not marked as EOG
+load: control token: 129761 '<|fim_middle|>' is not marked as EOG
+load: control token: 129760 '<|fim_prefix|>' is not marked as EOG
+load: control token: 129756 '<|image_pad|>' is not marked as EOG
+load: control token: 129754 '<|vision_end|>' is not marked as EOG
+load: control token: 129752 '<|quad_end|>' is not marked as EOG
+load: control token: 129750 '<|box_end|>' is not marked as EOG
+load: control token: 129747 '<|object_ref_start|>' is not marked as EOG
+load: control token: 129775 '<tts_text_bos_single>' is not marked as EOG
+load: control token: 129749 '<|box_start|>' is not marked as EOG
+load: control token: 129774 '<tts_text_eod>' is not marked as EOG
+load: control token: 129748 '<|object_ref_end|>' is not marked as EOG
+load: control token: 129771 '<|audio_end|>' is not marked as EOG
+load: control token: 129773 '<tts_text_bos>' is not marked as EOG
+load: control token: 129753 '<|vision_start|>' is not marked as EOG
+load: control token: 129755 '<|vision_pad|>' is not marked as EOG
+load: control token: 129772 '<tts_pad>' is not marked as EOG
+load: control token: 129757 '<|video_pad|>' is not marked as EOG
+load: control token: 129745 '<|im_start|>' is not marked as EOG
+load: control token: 129762 '<|fim_suffix|>' is not marked as EOG
+load: control token: 129751 '<|quad_start|>' is not marked as EOG
+load: printing all EOG tokens:
+load:   - 129744 ('<|endoftext|>')
+load:   - 129746 ('<|im_end|>')
+load:   - 129763 ('<|fim_pad|>')
+load:   - 129764 ('<|repo_name|>')
+load:   - 129765 ('<|file_sep|>')
+load: special tokens cache size = 33
+load: token to piece cache size = 0.8166 MB
+print_info: arch                  = qwen35
+print_info: vocab_only            = 1
+print_info: no_alloc              = 0
+print_info: vocab type            = BPE
+print_info: n_vocab               = 130020
+print_info: n_merges              = 129463
+print_info: BOS token             = 129744 '<|endoftext|>'
+print_info: EOS token             = 129746 '<|im_end|>'
+print_info: EOT token             = 129746 '<|im_end|>'
+print_info: PAD token             = 129744 '<|endoftext|>'
+print_info: LF token              = 198 'Ċ'
+print_info: FIM PRE token         = 129760 '<|fim_prefix|>'
+print_info: FIM SUF token         = 129762 '<|fim_suffix|>'
+print_info: FIM MID token         = 129761 '<|fim_middle|>'
+print_info: FIM PAD token         = 129763 '<|fim_pad|>'
+print_info: FIM REP token         = 129764 '<|repo_name|>'
+print_info: FIM SEP token         = 129765 '<|file_sep|>'
+print_info: EOG token             = 129744 '<|endoftext|>'
+print_info: EOG token             = 129746 '<|im_end|>'
+print_info: EOG token             = 129763 '<|fim_pad|>'
+print_info: EOG token             = 129764 '<|repo_name|>'
+print_info: EOG token             = 129765 '<|file_sep|>'
+print_info: max token length      = 256
+llama_model_load: vocab only - skipping tensors
+[mk] VRAM preflight: 13.35 GiB budget, 15.49 GiB free
+[mk] KV cache q8_0, 0.14 GB for 4096 positions
+[mk] weights 11.27 GB on device, 34 SMs, ctx 4096, n_draft 0, prefill chunk 128
+llama_model_loader: loaded meta data with 48 key-value pairs and 81 tensors from models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf (version GGUF V3 (latest))
+llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
+llama_model_loader: - kv   0:                       general.architecture str              = dflash
+llama_model_loader: - kv   1:                               general.type str              = model
+llama_model_loader: - kv   2:                               general.name str              = Qwen3.8-27B-DFlash2 ASCII Condensed
+llama_model_loader: - kv   3:                             general.author str              = Inco AI
+llama_model_loader: - kv   4:                       general.organization str              = z-lab
+llama_model_loader: - kv   5:                           general.finetune str              = DFlash2
+llama_model_loader: - kv   6:                           general.basename str              = Qwen3.8-27B
+llama_model_loader: - kv   7:                         general.size_label str              = 1.9B
+llama_model_loader: - kv   8:                            general.license str              = apache-2.0
+llama_model_loader: - kv   9:                         general.source.url str              = https://huggingface.co/z-lab/Qwen3.8-...
+llama_model_loader: - kv  10:                   general.base_model.count u32              = 1
+llama_model_loader: - kv  11:                  general.base_model.0.name str              = Qwen3.8 27B
+llama_model_loader: - kv  12:          general.base_model.0.organization str              = Qwen
+llama_model_loader: - kv  13:              general.base_model.0.repo_url str              = https://huggingface.co/Qwen/Qwen3.8-27B
+llama_model_loader: - kv  14:                               general.tags arr[str,6]       = ["dflash2", "speculative-decoding", "...
+llama_model_loader: - kv  15:                         dflash.block_count u32              = 5
+llama_model_loader: - kv  16:                      dflash.context_length u32              = 262144
+llama_model_loader: - kv  17:                    dflash.embedding_length u32              = 5120
+llama_model_loader: - kv  18:                 dflash.feed_forward_length u32              = 17408
+llama_model_loader: - kv  19:                dflash.attention.head_count u32              = 32
+llama_model_loader: - kv  20:             dflash.attention.head_count_kv u32              = 8
+llama_model_loader: - kv  21:                    dflash.attention.causal bool             = false
+llama_model_loader: - kv  22:                      dflash.rope.freq_base f32              = 10000000.000000
+llama_model_loader: - kv  23:    dflash.attention.layer_norm_rms_epsilon f32              = 0.000001
+llama_model_loader: - kv  24:                dflash.attention.key_length u32              = 128
+llama_model_loader: - kv  25:              dflash.attention.value_length u32              = 128
+llama_model_loader: - kv  26:                          dflash.block_size u32              = 8
+llama_model_loader: - kv  27:                    dflash.conv_kernel_size u32              = 2
+llama_model_loader: - kv  28:                     dflash.conv_group_size u32              = 16
+llama_model_loader: - kv  29:                       dflash.selector_rank u32              = 256
+llama_model_loader: - kv  30:                      dflash.selector_top_k u32              = 16
+llama_model_loader: - kv  31:                       dflash.target_layers arr[i32,5]       = [6, 20, 34, 48, 62]
+llama_model_loader: - kv  32:            dflash.attention.sliding_window u32              = 2048
+llama_model_loader: - kv  33:    dflash.attention.sliding_window_pattern arr[bool,5]      = [true, true, true, true, true]
+llama_model_loader: - kv  34:               general.quantization_version u32              = 2
+llama_model_loader: - kv  35:                          general.file_type u32              = 15
+llama_model_loader: - kv  36:             dflash.rope.dimension_sections arr[i32,4]       = [64, 0, 0, 0]
+llama_model_loader: - kv  37:                       tokenizer.ggml.model str              = gpt2
+llama_model_loader: - kv  38:                         tokenizer.ggml.pre str              = qwen35
+llama_model_loader: - kv  39:                      tokenizer.ggml.tokens arr[str,130020]  = ["!", "\"", "#", "$", "%", "&", "'", ...
+llama_model_loader: - kv  40:                  tokenizer.ggml.token_type arr[i32,130020]  = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...
+llama_model_loader: - kv  41:                      tokenizer.ggml.merges arr[str,129463]  = ["Ġ Ġ", "ĠĠ ĠĠ", "i n", "Ġ t",...
+llama_model_loader: - kv  42:                tokenizer.ggml.eos_token_id u32              = 129746
+llama_model_loader: - kv  43:            tokenizer.ggml.padding_token_id u32              = 129744
+llama_model_loader: - kv  44:                tokenizer.ggml.bos_token_id u32              = 129744
+llama_model_loader: - kv  45:               tokenizer.ggml.add_bos_token bool             = false
+llama_model_loader: - kv  46:                    tokenizer.chat_template str              = {%- set image_count = namespace(value...
+llama_model_loader: - kv  47:               tokenizer.ggml.mask_token_id u32              = 129770
+llama_model_loader: - type  f32:   32 tensors
+llama_model_loader: - type q4_K:   45 tensors
+llama_model_loader: - type q6_K:    4 tensors
+print_info: file format = GGUF V3 (latest)
+print_info: file type   = Q4_K - Medium
+print_info: file size   = 1.02 GiB (4.71 BPW) 
+llama_prepare_model_devices: using device CUDA0 (NVIDIA GeForce RTX 4060 Ti) (0000:01:00.0) - 4318 MiB free
+init_tokenizer: initializing tokenizer for type 2
+load: 0 unused tokens
+load: control token: 129776 '<|audio_pad|>' is not marked as EOG
+load: control token: 129770 '<|audio_start|>' is not marked as EOG
+load: control token: 129761 '<|fim_middle|>' is not marked as EOG
+load: control token: 129760 '<|fim_prefix|>' is not marked as EOG
+load: control token: 129756 '<|image_pad|>' is not marked as EOG
+load: control token: 129754 '<|vision_end|>' is not marked as EOG
+load: control token: 129752 '<|quad_end|>' is not marked as EOG
+load: control token: 129750 '<|box_end|>' is not marked as EOG
+load: control token: 129747 '<|object_ref_start|>' is not marked as EOG
+load: control token: 129775 '<tts_text_bos_single>' is not marked as EOG
+load: control token: 129749 '<|box_start|>' is not marked as EOG
+load: control token: 129774 '<tts_text_eod>' is not marked as EOG
+load: control token: 129748 '<|object_ref_end|>' is not marked as EOG
+load: control token: 129771 '<|audio_end|>' is not marked as EOG
+load: control token: 129773 '<tts_text_bos>' is not marked as EOG
+load: control token: 129753 '<|vision_start|>' is not marked as EOG
+load: control token: 129755 '<|vision_pad|>' is not marked as EOG
+load: control token: 129772 '<tts_pad>' is not marked as EOG
+load: control token: 129757 '<|video_pad|>' is not marked as EOG
+load: control token: 129745 '<|im_start|>' is not marked as EOG
+load: control token: 129762 '<|fim_suffix|>' is not marked as EOG
+load: control token: 129751 '<|quad_start|>' is not marked as EOG
+load: printing all EOG tokens:
+load:   - 129744 ('<|endoftext|>')
+load:   - 129746 ('<|im_end|>')
+load:   - 129763 ('<|fim_pad|>')
+load:   - 129764 ('<|repo_name|>')
+load:   - 129765 ('<|file_sep|>')
+load: special tokens cache size = 33
+load: token to piece cache size = 0.8166 MB
+print_info: arch                  = dflash
+print_info: vocab_only            = 1
+print_info: no_alloc              = 0
+print_info: vocab type            = BPE
+print_info: n_vocab               = 130020
+print_info: n_merges              = 129463
+print_info: BOS token             = 129744 '<|endoftext|>'
+print_info: EOS token             = 129746 '<|im_end|>'
+print_info: EOT token             = 129746 '<|im_end|>'
+print_info: PAD token             = 129744 '<|endoftext|>'
+print_info: MASK token            = 129770 '<|audio_start|>'
+print_info: LF token              = 198 'Ċ'
+print_info: FIM PRE token         = 129760 '<|fim_prefix|>'
+print_info: FIM SUF token         = 129762 '<|fim_suffix|>'
+print_info: FIM MID token         = 129761 '<|fim_middle|>'
+print_info: FIM PAD token         = 129763 '<|fim_pad|>'
+print_info: FIM REP token         = 129764 '<|repo_name|>'
+print_info: FIM SEP token         = 129765 '<|file_sep|>'
+print_info: EOG token             = 129744 '<|endoftext|>'
+print_info: EOG token             = 129746 '<|im_end|>'
+print_info: EOG token             = 129763 '<|fim_pad|>'
+print_info: EOG token             = 129764 '<|repo_name|>'
+print_info: EOG token             = 129765 '<|file_sep|>'
+print_info: max token length      = 256
+llama_model_load: vocab only - skipping tensors
+[mk-dflash-native] CUDA-only draft 1.071 GiB allocations; sliding KV FP16 2056 rows; graphs on; math DP4A/Q8
+llama_model_loader: loaded meta data with 48 key-value pairs and 81 tensors from models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf (version GGUF V3 (latest))
+llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
+llama_model_loader: - kv   0:                       general.architecture str              = dflash
+llama_model_loader: - kv   1:                               general.type str              = model
+llama_model_loader: - kv   2:                               general.name str              = Qwen3.8-27B-DFlash2 ASCII Condensed
+llama_model_loader: - kv   3:                             general.author str              = Inco AI
+llama_model_loader: - kv   4:                       general.organization str              = z-lab
+llama_model_loader: - kv   5:                           general.finetune str              = DFlash2
+llama_model_loader: - kv   6:                           general.basename str              = Qwen3.8-27B
+llama_model_loader: - kv   7:                         general.size_label str              = 1.9B
+llama_model_loader: - kv   8:                            general.license str              = apache-2.0
+llama_model_loader: - kv   9:                         general.source.url str              = https://huggingface.co/z-lab/Qwen3.8-...
+llama_model_loader: - kv  10:                   general.base_model.count u32              = 1
+llama_model_loader: - kv  11:                  general.base_model.0.name str              = Qwen3.8 27B
+llama_model_loader: - kv  12:          general.base_model.0.organization str              = Qwen
+llama_model_loader: - kv  13:              general.base_model.0.repo_url str              = https://huggingface.co/Qwen/Qwen3.8-27B
+llama_model_loader: - kv  14:                               general.tags arr[str,6]       = ["dflash2", "speculative-decoding", "...
+llama_model_loader: - kv  15:                         dflash.block_count u32              = 5
+llama_model_loader: - kv  16:                      dflash.context_length u32              = 262144
+llama_model_loader: - kv  17:                    dflash.embedding_length u32              = 5120
+llama_model_loader: - kv  18:                 dflash.feed_forward_length u32              = 17408
+llama_model_loader: - kv  19:                dflash.attention.head_count u32              = 32
+llama_model_loader: - kv  20:             dflash.attention.head_count_kv u32              = 8
+llama_model_loader: - kv  21:                    dflash.attention.causal bool             = false
+llama_model_loader: - kv  22:                      dflash.rope.freq_base f32              = 10000000.000000
+llama_model_loader: - kv  23:    dflash.attention.layer_norm_rms_epsilon f32              = 0.000001
+llama_model_loader: - kv  24:                dflash.attention.key_length u32              = 128
+llama_model_loader: - kv  25:              dflash.attention.value_length u32              = 128
+llama_model_loader: - kv  26:                          dflash.block_size u32              = 8
+llama_model_loader: - kv  27:                    dflash.conv_kernel_size u32              = 2
+llama_model_loader: - kv  28:                     dflash.conv_group_size u32              = 16
+llama_model_loader: - kv  29:                       dflash.selector_rank u32              = 256
+llama_model_loader: - kv  30:                      dflash.selector_top_k u32              = 16
+llama_model_loader: - kv  31:                       dflash.target_layers arr[i32,5]       = [6, 20, 34, 48, 62]
+llama_model_loader: - kv  32:            dflash.attention.sliding_window u32              = 2048
+llama_model_loader: - kv  33:    dflash.attention.sliding_window_pattern arr[bool,5]      = [true, true, true, true, true]
+llama_model_loader: - kv  34:               general.quantization_version u32              = 2
+llama_model_loader: - kv  35:                          general.file_type u32              = 15
+llama_model_loader: - kv  36:             dflash.rope.dimension_sections arr[i32,4]       = [64, 0, 0, 0]
+llama_model_loader: - kv  37:                       tokenizer.ggml.model str              = gpt2
+llama_model_loader: - kv  38:                         tokenizer.ggml.pre str              = qwen35
+llama_model_loader: - kv  39:                      tokenizer.ggml.tokens arr[str,130020]  = ["!", "\"", "#", "$", "%", "&", "'", ...
+llama_model_loader: - kv  40:                  tokenizer.ggml.token_type arr[i32,130020]  = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...
+llama_model_loader: - kv  41:                      tokenizer.ggml.merges arr[str,129463]  = ["Ġ Ġ", "ĠĠ ĠĠ", "i n", "Ġ t",...
+llama_model_loader: - kv  42:                tokenizer.ggml.eos_token_id u32              = 129746
+llama_model_loader: - kv  43:            tokenizer.ggml.padding_token_id u32              = 129744
+llama_model_loader: - kv  44:                tokenizer.ggml.bos_token_id u32              = 129744
+llama_model_loader: - kv  45:               tokenizer.ggml.add_bos_token bool             = false
+llama_model_loader: - kv  46:                    tokenizer.chat_template str              = {%- set image_count = namespace(value...
+llama_model_loader: - kv  47:               tokenizer.ggml.mask_token_id u32              = 129770
+llama_model_loader: - type  f32:   32 tensors
+llama_model_loader: - type q4_K:   45 tensors
+llama_model_loader: - type q6_K:    4 tensors
+print_info: file format = GGUF V3 (latest)
+print_info: file type   = Q4_K - Medium
+print_info: file size   = 1.02 GiB (4.71 BPW) 
+llama_prepare_model_devices: using device CUDA0 (NVIDIA GeForce RTX 4060 Ti) (0000:01:00.0) - 3180 MiB free
+load_arch_hparams: DFlash extract_layers = [6, 20, 34, 48, 62]
+init_tokenizer: initializing tokenizer for type 2
+load: 0 unused tokens
+load: control token: 129776 '<|audio_pad|>' is not marked as EOG
+load: control token: 129770 '<|audio_start|>' is not marked as EOG
+load: control token: 129761 '<|fim_middle|>' is not marked as EOG
+load: control token: 129760 '<|fim_prefix|>' is not marked as EOG
+load: control token: 129756 '<|image_pad|>' is not marked as EOG
+load: control token: 129754 '<|vision_end|>' is not marked as EOG
+load: control token: 129752 '<|quad_end|>' is not marked as EOG
+load: control token: 129750 '<|box_end|>' is not marked as EOG
+load: control token: 129747 '<|object_ref_start|>' is not marked as EOG
+load: control token: 129775 '<tts_text_bos_single>' is not marked as EOG
+load: control token: 129749 '<|box_start|>' is not marked as EOG
+load: control token: 129774 '<tts_text_eod>' is not marked as EOG
+load: control token: 129748 '<|object_ref_end|>' is not marked as EOG
+load: control token: 129771 '<|audio_end|>' is not marked as EOG
+load: control token: 129773 '<tts_text_bos>' is not marked as EOG
+load: control token: 129753 '<|vision_start|>' is not marked as EOG
+load: control token: 129755 '<|vision_pad|>' is not marked as EOG
+load: control token: 129772 '<tts_pad>' is not marked as EOG
+load: control token: 129757 '<|video_pad|>' is not marked as EOG
+load: control token: 129745 '<|im_start|>' is not marked as EOG
+load: control token: 129762 '<|fim_suffix|>' is not marked as EOG
+load: control token: 129751 '<|quad_start|>' is not marked as EOG
+load: printing all EOG tokens:
+load:   - 129744 ('<|endoftext|>')
+load:   - 129746 ('<|im_end|>')
+load:   - 129763 ('<|fim_pad|>')
+load:   - 129764 ('<|repo_name|>')
+load:   - 129765 ('<|file_sep|>')
+load: special tokens cache size = 33
+load: token to piece cache size = 0.8166 MB
+print_info: arch                  = dflash
+print_info: vocab_only            = 0
+print_info: no_alloc              = 0
+print_info: n_ctx_train           = 262144
+print_info: n_embd_inp            = 5120
+print_info: n_embd                = 5120
+print_info: n_embd_out            = 5120
+print_info: n_layer               = 5
+print_info: n_layer_all           = 5
+print_info: n_head                = 32
+print_info: n_head_kv             = 8
+print_info: n_rot                 = 128
+print_info: n_swa                 = 2048
+print_info: is_swa_any            = 1
+print_info: non_causal_type       = 0
+print_info: n_embd_head_k         = 128
+print_info: n_embd_head_v         = 128
+print_info: n_gqa                 = 4
+print_info: n_embd_k_gqa          = 1024
+print_info: n_embd_v_gqa          = 1024
+print_info: f_norm_eps            = 0.0e+00
+print_info: f_norm_rms_eps        = 1.0e-06
+print_info: f_clamp_kqv           = 0.0e+00
+print_info: f_max_alibi_bias      = 0.0e+00
+print_info: f_logit_scale         = 0.0e+00
+print_info: f_attn_scale          = 0.0e+00
+print_info: f_attn_value_scale    = 0.0000
+print_info: n_ff                  = 17408
+print_info: n_expert              = 0
+print_info: n_expert_used         = 0
+print_info: n_expert_groups       = 0
+print_info: n_group_used          = 0
+print_info: causal attn           = 0
+print_info: pooling type          = -1
+print_info: rope type             = 8
+print_info: rope scaling          = linear
+print_info: freq_base_train       = 10000000.0
+print_info: freq_scale_train      = 1
+print_info: freq_base_swa         = 10000000.0
+print_info: freq_scale_swa        = 1
+print_info: n_embd_head_k_swa     = 128
+print_info: n_embd_head_v_swa     = 128
+print_info: n_rot_swa             = 128
+print_info: n_ctx_orig_yarn       = 262144
+print_info: rope_yarn_log_mul     = 0.0000
+print_info: rope_finetuned        = unknown
+print_info: mrope sections        = [64, 0, 0, 0]
+print_info: model type            = ?B
+print_info: model params          = 1.86 B
+print_info: general.name          = Qwen3.8-27B-DFlash2 ASCII Condensed
+print_info: vocab type            = BPE
+print_info: n_vocab               = 130020
+print_info: n_merges              = 129463
+print_info: BOS token             = 129744 '<|endoftext|>'
+print_info: EOS token             = 129746 '<|im_end|>'
+print_info: EOT token             = 129746 '<|im_end|>'
+print_info: PAD token             = 129744 '<|endoftext|>'
+print_info: MASK token            = 129770 '<|audio_start|>'
+print_info: LF token              = 198 'Ċ'
+print_info: FIM PRE token         = 129760 '<|fim_prefix|>'
+print_info: FIM SUF token         = 129762 '<|fim_suffix|>'
+print_info: FIM MID token         = 129761 '<|fim_middle|>'
+print_info: FIM PAD token         = 129763 '<|fim_pad|>'
+print_info: FIM REP token         = 129764 '<|repo_name|>'
+print_info: FIM SEP token         = 129765 '<|file_sep|>'
+print_info: EOG token             = 129744 '<|endoftext|>'
+print_info: EOG token             = 129746 '<|im_end|>'
+print_info: EOG token             = 129763 '<|fim_pad|>'
+print_info: EOG token             = 129764 '<|repo_name|>'
+print_info: EOG token             = 129765 '<|file_sep|>'
+print_info: max token length      = 256
+load_tensors: loading model tensors, this can take a while... (load_mode = mmap)
+load_tensors: layer   0 assigned to device CUDA0, is_swa = 1
+load_tensors: layer   1 assigned to device CUDA0, is_swa = 1
+load_tensors: layer   2 assigned to device CUDA0, is_swa = 1
+load_tensors: layer   3 assigned to device CUDA0, is_swa = 1
+load_tensors: layer   4 assigned to device CUDA0, is_swa = 1
+load_tensors: layer   5 assigned to device CUDA0, is_swa = 0
+create_tensor: loading tensor token_embd.weight
+create_tensor: loading tensor selector_predecessor.weight
+create_tensor: loading tensor selector_successor.weight
+create_tensor: loading tensor selector_hidden.weight
+load_arch_tensors: DFlash2 conv kernel = 2, group = 16, selector rank = 256, top-k = 16
+create_tensor: loading tensor fc.weight
+create_tensor: loading tensor fc.scale
+create_tensor: loading tensor enc.output_norm.weight
+create_tensor: loading tensor output_norm.weight
+create_tensor: loading tensor output.weight
+create_tensor: loading tensor blk.0.attn_norm.weight
+create_tensor: loading tensor blk.0.attn_q.weight
+create_tensor: loading tensor blk.0.attn_k.weight
+create_tensor: loading tensor blk.0.attn_v.weight
+create_tensor: loading tensor blk.0.attn_output.weight
+create_tensor: loading tensor blk.0.attn_q_norm.weight
+create_tensor: loading tensor blk.0.attn_k_norm.weight
+create_tensor: loading tensor blk.0.post_attention_norm.weight
+create_tensor: loading tensor blk.0.post_ffw_norm.weight
+create_tensor: loading tensor blk.0.layer_output_scale.weight
+create_tensor: loading tensor rope_freqs.weight
+create_tensor: loading tensor blk.0.attn_sinks.weight
+create_tensor: loading tensor blk.0.ffn_norm.weight
+create_tensor: loading tensor blk.0.ffn_gate.weight
+create_tensor: loading tensor blk.0.ffn_down.weight
+create_tensor: loading tensor blk.0.ffn_up.weight
+create_tensor: loading tensor blk.0.attn_conv_base
+create_tensor: loading tensor blk.0.attn_conv_proj.weight
+create_tensor: loading tensor blk.0.ffn_conv_base
+create_tensor: loading tensor blk.0.ffn_conv_proj.weight
+create_tensor: loading tensor blk.1.attn_norm.weight
+create_tensor: loading tensor blk.1.attn_q.weight
+create_tensor: loading tensor blk.1.attn_k.weight
+create_tensor: loading tensor blk.1.attn_v.weight
+create_tensor: loading tensor blk.1.attn_output.weight
+create_tensor: loading tensor blk.1.attn_q_norm.weight
+create_tensor: loading tensor blk.1.attn_k_norm.weight
+create_tensor: loading tensor blk.1.post_attention_norm.weight
+create_tensor: loading tensor blk.1.post_ffw_norm.weight
+create_tensor: loading tensor blk.1.layer_output_scale.weight
+create_tensor: loading tensor rope_freqs.weight
+create_tensor: loading tensor blk.1.attn_sinks.weight
+create_tensor: loading tensor blk.1.ffn_norm.weight
+create_tensor: loading tensor blk.1.ffn_gate.weight
+create_tensor: loading tensor blk.1.ffn_down.weight
+create_tensor: loading tensor blk.1.ffn_up.weight
+create_tensor: loading tensor blk.1.attn_conv_base
+create_tensor: loading tensor blk.1.attn_conv_proj.weight
+create_tensor: loading tensor blk.1.ffn_conv_base
+create_tensor: loading tensor blk.1.ffn_conv_proj.weight
+create_tensor: loading tensor blk.2.attn_norm.weight
+create_tensor: loading tensor blk.2.attn_q.weight
+create_tensor: loading tensor blk.2.attn_k.weight
+create_tensor: loading tensor blk.2.attn_v.weight
+create_tensor: loading tensor blk.2.attn_output.weight
+create_tensor: loading tensor blk.2.attn_q_norm.weight
+create_tensor: loading tensor blk.2.attn_k_norm.weight
+create_tensor: loading tensor blk.2.post_attention_norm.weight
+create_tensor: loading tensor blk.2.post_ffw_norm.weight
+create_tensor: loading tensor blk.2.layer_output_scale.weight
+create_tensor: loading tensor rope_freqs.weight
+create_tensor: loading tensor blk.2.attn_sinks.weight
+create_tensor: loading tensor blk.2.ffn_norm.weight
+create_tensor: loading tensor blk.2.ffn_gate.weight
+create_tensor: loading tensor blk.2.ffn_down.weight
+create_tensor: loading tensor blk.2.ffn_up.weight
+create_tensor: loading tensor blk.2.attn_conv_base
+create_tensor: loading tensor blk.2.attn_conv_proj.weight
+create_tensor: loading tensor blk.2.ffn_conv_base
+create_tensor: loading tensor blk.2.ffn_conv_proj.weight
+create_tensor: loading tensor blk.3.attn_norm.weight
+create_tensor: loading tensor blk.3.attn_q.weight
+create_tensor: loading tensor blk.3.attn_k.weight
+create_tensor: loading tensor blk.3.attn_v.weight
+create_tensor: loading tensor blk.3.attn_output.weight
+create_tensor: loading tensor blk.3.attn_q_norm.weight
+create_tensor: loading tensor blk.3.attn_k_norm.weight
+create_tensor: loading tensor blk.3.post_attention_norm.weight
+create_tensor: loading tensor blk.3.post_ffw_norm.weight
+create_tensor: loading tensor blk.3.layer_output_scale.weight
+create_tensor: loading tensor rope_freqs.weight
+create_tensor: loading tensor blk.3.attn_sinks.weight
+create_tensor: loading tensor blk.3.ffn_norm.weight
+create_tensor: loading tensor blk.3.ffn_gate.weight
+create_tensor: loading tensor blk.3.ffn_down.weight
+create_tensor: loading tensor blk.3.ffn_up.weight
+create_tensor: loading tensor blk.3.attn_conv_base
+create_tensor: loading tensor blk.3.attn_conv_proj.weight
+create_tensor: loading tensor blk.3.ffn_conv_base
+create_tensor: loading tensor blk.3.ffn_conv_proj.weight
+create_tensor: loading tensor blk.4.attn_norm.weight
+create_tensor: loading tensor blk.4.attn_q.weight
+create_tensor: loading tensor blk.4.attn_k.weight
+create_tensor: loading tensor blk.4.attn_v.weight
+create_tensor: loading tensor blk.4.attn_output.weight
+create_tensor: loading tensor blk.4.attn_q_norm.weight
+create_tensor: loading tensor blk.4.attn_k_norm.weight
+create_tensor: loading tensor blk.4.post_attention_norm.weight
+create_tensor: loading tensor blk.4.post_ffw_norm.weight
+create_tensor: loading tensor blk.4.layer_output_scale.weight
+create_tensor: loading tensor rope_freqs.weight
+create_tensor: loading tensor blk.4.attn_sinks.weight
+create_tensor: loading tensor blk.4.ffn_norm.weight
+create_tensor: loading tensor blk.4.ffn_gate.weight
+create_tensor: loading tensor blk.4.ffn_down.weight
+create_tensor: loading tensor blk.4.ffn_up.weight
+create_tensor: loading tensor blk.4.attn_conv_base
+create_tensor: loading tensor blk.4.attn_conv_proj.weight
+create_tensor: loading tensor blk.4.ffn_conv_base
+create_tensor: loading tensor blk.4.ffn_conv_proj.weight
+create_tensor: loading tensor blk.0.attn_q.scale
+create_tensor: loading tensor blk.0.attn_k.scale
+create_tensor: loading tensor blk.0.attn_v.scale
+create_tensor: loading tensor blk.0.attn_output.scale
+create_tensor: loading tensor blk.0.ffn_gate.scale
+create_tensor: loading tensor blk.0.ffn_down.scale
+create_tensor: loading tensor blk.0.ffn_up.scale
+create_tensor: loading tensor blk.0.attn_q.input_scale
+create_tensor: loading tensor blk.0.attn_k.input_scale
+create_tensor: loading tensor blk.0.attn_v.input_scale
+create_tensor: loading tensor blk.0.attn_output.input_scale
+create_tensor: loading tensor blk.0.ffn_gate.input_scale
+create_tensor: loading tensor blk.0.ffn_down.input_scale
+create_tensor: loading tensor blk.0.ffn_up.input_scale
+create_tensor: loading tensor blk.1.attn_q.scale
+create_tensor: loading tensor blk.1.attn_k.scale
+create_tensor: loading tensor blk.1.attn_v.scale
+create_tensor: loading tensor blk.1.attn_output.scale
+create_tensor: loading tensor blk.1.ffn_gate.scale
+create_tensor: loading tensor blk.1.ffn_down.scale
+create_tensor: loading tensor blk.1.ffn_up.scale
+create_tensor: loading tensor blk.1.attn_q.input_scale
+create_tensor: loading tensor blk.1.attn_k.input_scale
+create_tensor: loading tensor blk.1.attn_v.input_scale
+create_tensor: loading tensor blk.1.attn_output.input_scale
+create_tensor: loading tensor blk.1.ffn_gate.input_scale
+create_tensor: loading tensor blk.1.ffn_down.input_scale
+create_tensor: loading tensor blk.1.ffn_up.input_scale
+create_tensor: loading tensor blk.2.attn_q.scale
+create_tensor: loading tensor blk.2.attn_k.scale
+create_tensor: loading tensor blk.2.attn_v.scale
+create_tensor: loading tensor blk.2.attn_output.scale
+create_tensor: loading tensor blk.2.ffn_gate.scale
+create_tensor: loading tensor blk.2.ffn_down.scale
+create_tensor: loading tensor blk.2.ffn_up.scale
+create_tensor: loading tensor blk.2.attn_q.input_scale
+create_tensor: loading tensor blk.2.attn_k.input_scale
+create_tensor: loading tensor blk.2.attn_v.input_scale
+create_tensor: loading tensor blk.2.attn_output.input_scale
+create_tensor: loading tensor blk.2.ffn_gate.input_scale
+create_tensor: loading tensor blk.2.ffn_down.input_scale
+create_tensor: loading tensor blk.2.ffn_up.input_scale
+create_tensor: loading tensor blk.3.attn_q.scale
+create_tensor: loading tensor blk.3.attn_k.scale
+create_tensor: loading tensor blk.3.attn_v.scale
+create_tensor: loading tensor blk.3.attn_output.scale
+create_tensor: loading tensor blk.3.ffn_gate.scale
+create_tensor: loading tensor blk.3.ffn_down.scale
+create_tensor: loading tensor blk.3.ffn_up.scale
+create_tensor: loading tensor blk.3.attn_q.input_scale
+create_tensor: loading tensor blk.3.attn_k.input_scale
+create_tensor: loading tensor blk.3.attn_v.input_scale
+create_tensor: loading tensor blk.3.attn_output.input_scale
+create_tensor: loading tensor blk.3.ffn_gate.input_scale
+create_tensor: loading tensor blk.3.ffn_down.input_scale
+create_tensor: loading tensor blk.3.ffn_up.input_scale
+create_tensor: loading tensor blk.4.attn_q.scale
+create_tensor: loading tensor blk.4.attn_k.scale
+create_tensor: loading tensor blk.4.attn_v.scale
+create_tensor: loading tensor blk.4.attn_output.scale
+create_tensor: loading tensor blk.4.ffn_gate.scale
+create_tensor: loading tensor blk.4.ffn_down.scale
+create_tensor: loading tensor blk.4.ffn_up.scale
+create_tensor: loading tensor blk.4.attn_q.input_scale
+create_tensor: loading tensor blk.4.attn_k.input_scale
+create_tensor: loading tensor blk.4.attn_v.input_scale
+create_tensor: loading tensor blk.4.attn_output.input_scale
+create_tensor: loading tensor blk.4.ffn_gate.input_scale
+create_tensor: loading tensor blk.4.ffn_down.input_scale
+create_tensor: loading tensor blk.4.ffn_up.input_scale
+load_tensors: offloading output layer to GPU
+load_tensors: offloading 4 repeating layers to GPU
+load_tensors: offloaded 6/6 layers to GPU
+load_tensors:        CUDA0 model buffer size =  1047.12 MiB
+...................................
+llama_context: constructing llama_context
+llama_context: n_seq_max             = 1
+llama_context: n_ctx                 = 4096
+llama_context: n_ctx_seq             = 4096
+llama_context: n_batch               = 512
+llama_context: n_ubatch              = 512
+llama_context: causal_attn           = 0
+llama_context: flash_attn            = enabled
+llama_context: kv_unified            = false
+llama_context: freq_base             = 10000000.0
+llama_context: freq_scale            = 1
+llama_context: n_rs_seq              = 0
+llama_context: n_outputs_max         = 512
+llama_context: n_outputs_max_per_seq = 1
+llama_context: n_ctx_seq (4096) < n_ctx_train (262144) -- the full capacity of the model will not be utilized
+set_abort_callback: call
+llama_context:  CUDA_Host  output buffer size =     0.50 MiB
+llama_kv_cache_iswa: using full-size SWA cache (ref: https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
+llama_kv_cache_iswa: creating non-SWA KV cache, size = 4096 cells
+llama_kv_cache: layer   0: filtered
+llama_kv_cache: layer   1: filtered
+llama_kv_cache: layer   2: filtered
+llama_kv_cache: layer   3: filtered
+llama_kv_cache: layer   4: filtered
+llama_kv_cache: size =    0.00 MiB (  4096 cells,   0 layers,  1/1 seqs), K (f16):    0.00 MiB, V (f16):    0.00 MiB
+llama_kv_cache: n_rot_k = 0, n_embd_head_k_all = 0
+llama_kv_cache: n_rot_v = 0, n_embd_head_k_all = 0
+llama_kv_cache_iswa: creating     SWA KV cache, size = 4096 cells
+llama_kv_cache: layer   0: dev = CUDA0
+llama_kv_cache: layer   1: dev = CUDA0
+llama_kv_cache: layer   2: dev = CUDA0
+llama_kv_cache: layer   3: dev = CUDA0
+llama_kv_cache: layer   4: dev = CUDA0
+llama_kv_cache:      CUDA0 KV buffer size =    80.00 MiB
+llama_kv_cache: size =   80.00 MiB (  4096 cells,   5 layers,  1/1 seqs), K (f16):   40.00 MiB, V (f16):   40.00 MiB
+llama_kv_cache: n_rot_k = 0, n_embd_head_k_all = 128
+llama_kv_cache: n_rot_v = 0, n_embd_head_k_all = 128
+llama_context: enumerating backends
+llama_context: backend_ptrs.size() = 2
+sched_reserve: reserving ...
+sched_reserve: max_nodes = 1024
+sched_reserve: reserving full memory module
+sched_reserve: worst-case: n_tokens = 512, n_seqs = 1, n_outputs = 1
+resolve_fused_ops: resolving fused DeepSeek V4 HC support:
+graph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_40' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_133' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_226' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_319' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_412' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {     1,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+resolve_fused_ops: fused DeepSeek V4 HC pre enabled
+graph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_40' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_133' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_226' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_319' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_412' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {     1,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+resolve_fused_ops: fused DeepSeek V4 HC comb enabled
+graph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_40' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_133' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_226' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_319' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_412' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {     1,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+resolve_fused_ops: fused DeepSeek V4 HC post enabled
+graph_reserve: reserving a graph for ubatch with n_tokens =  512, n_seqs =  1, n_outputs =  512
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_48' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_173' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_298' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_423' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_548' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {   512,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {   512,     1,     1,     1 }] is used by node 'leaf_3 (view)' (VIEW)
+graph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_40' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_133' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_226' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_319' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_412' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {     1,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+graph_reserve: reserving a graph for ubatch with n_tokens =  512, n_seqs =  1, n_outputs =  512
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_48' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_173' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_298' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_423' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_548' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {   512,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {   512,     1,     1,     1 }] is used by node 'leaf_3 (view)' (VIEW)
+sched_reserve:      CUDA0 compute buffer size =   307.98 MiB
+sched_reserve:  CUDA_Host compute buffer size =     4.02 MiB
+sched_reserve: graph (pp bs=512, tg bs=1): nodes = 691 / 471, splits = 1 / 1, input objects = 3 / 3, input tensors = 5 / 5
+sched_reserve: reserve took 4.41 ms, sched copies = 1
+set_embeddings_nextn: value = 1, masked = 0
+sched_reserve: reserving ...
+sched_reserve: max_nodes = 1024
+sched_reserve: reserving full memory module
+sched_reserve: worst-case: n_tokens = 512, n_seqs = 1, n_outputs = 1
+graph_reserve: reserving a graph for ubatch with n_tokens =  512, n_seqs =  1, n_outputs =  512
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_48' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_173' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_298' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_423' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_548' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {   512,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {   512,     1,     1,     1 }] is used by node 'leaf_3 (view)' (VIEW)
+graph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_40' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_133' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_226' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_319' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,     1,     1,     1 }] is used by node 'node_412' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {     1,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {     4,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {     1,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+graph_reserve: reserving a graph for ubatch with n_tokens =  512, n_seqs =  1, n_outputs =  512
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_48' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_173' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_298' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_423' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                attn_inp_kq_mask' [f16, ne = {  4096,   512,     1,     1 }] is used by node 'node_548' (FLASH_ATTN_EXT)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_v_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_v_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l0 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l1 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l2 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l3 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                 attn_inp_k_idxs' [i64, ne = {   512,     1,     1,     1 }] is used by node 'cache_k_l4 (view)' (SET_ROWS)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-0' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-1' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-2' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-3' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Qcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                         inp_pos' [i32, ne = {  2048,     1,     1,     1 }] is used by node 'Kcur-4' (ROPE)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {   512,     1,     1,     1 }] is used by node 'inp_noise_embd' (GET_ROWS)
+llama_graph_n_input_tensors: input tensor '                          leaf_3' [i32, ne = {   512,     1,     1,     1 }] is used by node 'leaf_3 (view)' (VIEW)
+sched_reserve:      CUDA0 compute buffer size =   307.98 MiB
+sched_reserve:  CUDA_Host compute buffer size =     4.02 MiB
+sched_reserve: graph (pp bs=512, tg bs=1): nodes = 691 / 471, splits = 1 / 1, input objects = 3 / 3, input tensors = 5 / 5
+sched_reserve: reserve took 6.71 ms, sched copies = 1
+[mk] runtime VRAM: 11.226 GiB engine allocations, 14.512 GiB device used, 1.143 GiB free
+ORACLE {"position":28,"candidate_matches":110,"candidate_total":112,"score_pairs":1728,"nrmse":0.0060662536,"max_error":0.559837341,"proposals_equal":true}
+ORACLE {"position":28,"candidate_matches":110,"candidate_total":112,"score_pairs":1728,"nrmse":0.0060662536,"max_error":0.559837341,"proposals_equal":true}
+IDS: 19 20 129746
+TEXT_HEX:3435
+RESULT {"case_index":0,"rep":0,"tokens":3,"decode_seconds":0.083666719,"tps":23.904368,"prefill_seconds":0.467599515,"draft_seconds":0.009765628,"verify_with_injection_seconds":0.066982431,"injection_decode_seconds":0.000862959,"injection_prefill_seconds":0.271095444,"native_injection_prefill_gpu_seconds":0.004339712,"native_injection_decode_gpu_seconds":0.000851168,"cycles":1,"drafted":7,"accepted":2}
+~llama_context:      CUDA0 compute buffer size is 307.9825 MiB, matches expectation of 307.9825 MiB
+~llama_context:  CUDA_Host compute buffer size is   4.0176 MiB, matches expectation of   4.0176 MiB
