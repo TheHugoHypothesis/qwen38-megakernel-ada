@@ -1,0 +1,581 @@
+{
+  "checks": [
+    {
+      "check": "greedy_repeat",
+      "responses": [
+        {
+          "id": "chatcmpl-6db6e9adf8fc4d03b907ab522c1130be",
+          "object": "chat.completion",
+          "created": 1792117346,
+          "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    Args:\n        n: The integer to test for primality.\n        \n    Returns:\n        True if n is a prime number, False otherwise."
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 64,
+            "total_tokens": 85,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "timings": {
+            "prompt_n": 21,
+            "prompt_ms": 549.4236946105957,
+            "predicted_n": 64,
+            "predicted_ms": 675.8687496185303,
+            "predicted_per_second": 94.69294154541468
+          }
+        },
+        {
+          "id": "chatcmpl-adcb969e25644f9faaace9092518881b",
+          "object": "chat.completion",
+          "created": 1792117347,
+          "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    Args:\n        n: The integer to test for primality.\n        \n    Returns:\n        True if n is a prime number, False otherwise."
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 64,
+            "total_tokens": 85,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "timings": {
+            "prompt_n": 21,
+            "prompt_ms": 461.8394374847412,
+            "predicted_n": 64,
+            "predicted_ms": 674.9074459075928,
+            "predicted_per_second": 94.82781733713867
+          }
+        }
+      ]
+    },
+    {
+      "check": "stream",
+      "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    Args:\n        n: The integer to test for primality.\n        \n    Returns:\n        True if n is a prime number, False otherwise."
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 1,
+      "response": {
+        "id": "chatcmpl-a4e5490491ec456c8b67e3ee604d902e",
+        "object": "chat.completion",
+        "created": 1792117349,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 1,
+          "total_tokens": 22,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.8558883666992,
+          "predicted_n": 1,
+          "predicted_ms": 0.0286102294921875,
+          "predicted_per_second": 34952.53333333333
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 2,
+      "response": {
+        "id": "chatcmpl-fbd11f446c004642b418b13afad82eb6",
+        "object": "chat.completion",
+        "created": 1792117349,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 2,
+          "total_tokens": 23,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.8363380432129,
+          "predicted_n": 2,
+          "predicted_ms": 54.465293884277344,
+          "predicted_per_second": 36.720631752201854
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 3,
+      "response": {
+        "id": "chatcmpl-5f3084dd26854619b836137bc4bd6abe",
+        "object": "chat.completion",
+        "created": 1792117350,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 3,
+          "total_tokens": 24,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.8048667907715,
+          "predicted_n": 3,
+          "predicted_ms": 65.06228446960449,
+          "predicted_per_second": 46.109662832412944
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 7,
+      "response": {
+        "id": "chatcmpl-e773f1be9dac4847804e19e421260c55",
+        "object": "chat.completion",
+        "created": 1792117350,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python\ndef is_prime(n"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 7,
+          "total_tokens": 28,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.7419242858887,
+          "predicted_n": 7,
+          "predicted_ms": 69.49567794799805,
+          "predicted_per_second": 100.72568836925272
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 8,
+      "response": {
+        "id": "chatcmpl-48ebd8bf6b7d4b3faba9b80007e445b2",
+        "object": "chat.completion",
+        "created": 1792117351,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python\ndef is_prime(n:"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 8,
+          "total_tokens": 29,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 462.0230197906494,
+          "predicted_n": 8,
+          "predicted_ms": 72.12471961975098,
+          "predicted_per_second": 110.91897538287611
+        }
+      }
+    },
+    {
+      "check": "bounded_tail",
+      "limit": 9,
+      "response": {
+        "id": "chatcmpl-c84eaa7384074e888893282404c923ac",
+        "object": "chat.completion",
+        "created": 1792117351,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "```python\ndef is_prime(n: int"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 9,
+          "total_tokens": 30,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 21,
+          "prompt_ms": 461.8852138519287,
+          "predicted_n": 9,
+          "predicted_ms": 74.5236873626709,
+          "predicted_per_second": 120.76697112692953
+        }
+      }
+    },
+    {
+      "check": "seed_repeat",
+      "responses": [
+        {
+          "id": "chatcmpl-bd9f47a64e6c406682ca10f018f063ed",
+          "object": "chat.completion",
+          "created": 1792117352,
+          "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    A prime number is a natural number greater than 1 that has no positive\n    divisors other than 1 and itself.\n    \n    Args:"
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 64,
+            "total_tokens": 85,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "timings": {
+            "prompt_n": 21,
+            "prompt_ms": 461.885929107666,
+            "predicted_n": 64,
+            "predicted_ms": 678.074836730957,
+            "predicted_per_second": 94.38486216145134
+          }
+        },
+        {
+          "id": "chatcmpl-2e0895a5b6244aa3821d407452b8dbfa",
+          "object": "chat.completion",
+          "created": 1792117353,
+          "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "```python\ndef is_prime(n: int) -> bool:\n    \"\"\"\n    Test whether a given integer is a prime number.\n    \n    A prime number is a natural number greater than 1 that has no positive\n    divisors other than 1 and itself.\n    \n    Args:"
+              },
+              "finish_reason": "length"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 64,
+            "total_tokens": 85,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "timings": {
+            "prompt_n": 21,
+            "prompt_ms": 461.9293212890625,
+            "predicted_n": 64,
+            "predicted_ms": 678.0428886413574,
+            "predicted_per_second": 94.38930939640314
+          }
+        }
+      ]
+    },
+    {
+      "check": "unsupported_sampler",
+      "body": {
+        "presence_penalty": 1
+      },
+      "error": {
+        "error": {
+          "message": "presence_penalty is not supported by the megakernel; set presence_penalty=0 in the client's Sampling settings. Use the llama.cpp backend to keep nonzero penalties.",
+          "type": "invalid_request_error"
+        }
+      }
+    },
+    {
+      "check": "unsupported_sampler",
+      "body": {
+        "temperature": 0.7,
+        "top_k": 40
+      },
+      "error": {
+        "error": {
+          "message": "top_k must be in [1, 32] for non-greedy sampling",
+          "type": "invalid_request_error"
+        }
+      }
+    },
+    {
+      "check": "second_turn",
+      "response": {
+        "id": "chatcmpl-20d13edb657843108ff4e8d5dc9bbb89",
+        "object": "chat.completion",
+        "created": 1792117355,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "The time complexity of the `is_prime` function is **O(\u221an)**.\n\n### Explanation\n\n1.  **Loop Bound**: The function checks for divisors from `2` up to `\u221an` (inclusive). This is because if `n` has a factor larger than its square root, the"
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 104,
+          "completion_tokens": 64,
+          "total_tokens": 168,
+          "prompt_tokens_details": {
+            "cached_tokens": 21
+          }
+        },
+        "timings": {
+          "prompt_n": 83,
+          "prompt_ms": 481.88018798828125,
+          "predicted_n": 64,
+          "predicted_ms": 750.2310276031494,
+          "predicted_per_second": 85.30705562054433
+        }
+      }
+    },
+    {
+      "check": "top_level_reasoning",
+      "response": {
+        "id": "chatcmpl-8fe8f595033c4373b34e2f3045143d0b",
+        "object": "chat.completion",
+        "created": 1792117356,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "4",
+              "reasoning_content": "The user is asking a simple arithmetic question: 2 + 2. They want just the integer as the answer.\n\n2 + 2 = 4"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 54,
+          "completion_tokens": 37,
+          "total_tokens": 91,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 54,
+          "prompt_ms": 469.926118850708,
+          "predicted_n": 37,
+          "predicted_ms": 451.45583152770996,
+          "predicted_per_second": 81.9570762322271
+        }
+      }
+    },
+    {
+      "check": "structured_tool_call",
+      "response": {
+        "id": "chatcmpl-0c140f7b5c0c4ee88f133f0f31681c50",
+        "object": "chat.completion",
+        "created": 1792117357,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_82f00024fa464229984b2ea7",
+                  "type": "function",
+                  "function": {
+                    "name": "lookup",
+                    "arguments": "{\"key\": \"swift\"}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 282,
+          "completion_tokens": 25,
+          "total_tokens": 307,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 282,
+          "prompt_ms": 1334.3031406402588,
+          "predicted_n": 25,
+          "predicted_ms": 226.698637008667,
+          "predicted_per_second": 110.27856333800638
+        }
+      }
+    },
+    {
+      "check": "tool_result_roundtrip",
+      "response": {
+        "id": "chatcmpl-651a3ae52d7e45b9ad2bc9eb162c6888",
+        "object": "chat.completion",
+        "created": 1792117358,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "SWIFT-4060"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 348,
+          "completion_tokens": 8,
+          "total_tokens": 356,
+          "prompt_tokens_details": {
+            "cached_tokens": 307
+          }
+        },
+        "timings": {
+          "prompt_n": 41,
+          "prompt_ms": 469.21515464782715,
+          "predicted_n": 8,
+          "predicted_ms": 75.12140274047852,
+          "predicted_per_second": 106.49428402764994
+        }
+      }
+    },
+    {
+      "check": "prefill_chunk_boundary",
+      "response": {
+        "id": "chatcmpl-0ba798767e194795bf2ca228f6afa56e",
+        "object": "chat.completion",
+        "created": 1792117491,
+        "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "ORION-4060"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 35330,
+          "completion_tokens": 8,
+          "total_tokens": 35338,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "timings": {
+          "prompt_n": 35330,
+          "prompt_ms": 132890.64979553223,
+          "predicted_n": 8,
+          "predicted_ms": 174.7453212738037,
+          "predicted_per_second": 45.78091099483583
+        }
+      }
+    }
+  ],
+  "command": [
+    "/usr/bin/python3",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/server/mk_server.py",
+    "-m",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+    "-c",
+    "96000",
+    "--kv",
+    "q4",
+    "-d",
+    "7",
+    "--prefill-chunk",
+    "128",
+    "--port",
+    "18116",
+    "--draft-model",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf",
+    "--verify-width",
+    "auto",
+    "--lib",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/libqwen38mk.so"
+  ],
+  "nvidia_memory_mib": "15350, 16380"
+}

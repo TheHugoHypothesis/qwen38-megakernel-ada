@@ -10,7 +10,31 @@ HERE=Path(__file__).resolve().parent
 WORKSPACE=HERE.parent
 
 
-def check_draft(target,draft,llama_root):
+def target_profile(target, llama_root):
+    """Read variant metadata; full tensor validation remains in the CUDA loader."""
+    sys.path.insert(0, str(llama_root / 'gguf-py'))
+    import gguf
+    reader = gguf.GGUFReader(target)
+    def value(key, default=None):
+        return reader.fields[key].contents() if key in reader.fields else default
+    mtp = int(value('qwen35.nextn_predict_layers', 0))
+    if value('general.architecture') != 'qwen35' or mtp not in (0, 1) or value('qwen35.block_count') != 64 + mtp:
+        raise ValueError('expected qwen35 with 64 trunk layers and zero or one MTP layer')
+    return {'name': value('general.name'), 'vocabulary': len(value('tokenizer.ggml.tokens')),
+            'mtp_layers': mtp, 'model_context': int(value('qwen35.context_length'))}
+
+
+def draft_depth(engine, requested, mtp_layers):
+    if engine == 'mtp' and not mtp_layers:
+        raise ValueError('target has no MTP head; select megakernel or megakernel-dflash2')
+    depth = requested if requested is not None else (7 if engine in ('dflash2', 'megakernel-dflash2') else 4 if mtp_layers else 0)
+    if engine == 'megakernel' and depth > 0 and not mtp_layers:
+        raise ValueError('target has no MTP head; use --draft 0 or --engine megakernel-dflash2')
+    return depth
+
+
+def check_draft(target,draft,llama_root=None):
+    llama_root = llama_root or WORKSPACE / 'llama.cpp'
     sys.path.insert(0,str(llama_root/'gguf-py'))
     import gguf
     t=gguf.GGUFReader(target); d=gguf.GGUFReader(draft)
@@ -25,8 +49,10 @@ def check_draft(target,draft,llama_root):
     layers=value(d,'dflash.target_layers')
     if not layers or any(x<0 or x>=value(t,'qwen35.block_count') for x in layers):
         raise ValueError('draft feature taps are outside the target')
-    for key in ('tokenizer.ggml.model','tokenizer.ggml.tokens','tokenizer.ggml.merges',
-                'tokenizer.ggml.bos_token_id','tokenizer.ggml.eos_token_id'):
+    for key in ('tokenizer.ggml.model','tokenizer.ggml.pre','tokenizer.ggml.tokens',
+                'tokenizer.ggml.token_type','tokenizer.ggml.merges',
+                'tokenizer.ggml.bos_token_id','tokenizer.ggml.eos_token_id',
+                'tokenizer.ggml.padding_token_id','tokenizer.ggml.add_bos_token'):
         if value(t,key)!=value(d,key):
             raise ValueError(f'target/draft differ: {key}; an ASCII-condensed target requires a remapped DFlash2 draft from tools/prepare_condensed.py')
     return int(value(d,'dflash.block_size'))
@@ -44,6 +70,8 @@ def main():
     ap.add_argument('--port',type=int,default=8080)
     ap.add_argument('--host',default='127.0.0.1')
     ap.add_argument('--prefill-chunk',default='auto')
+    ap.add_argument('--verify-width', choices=('full', '3', 'auto'),
+                    help='native DFlash2 verification width; auto is an experimental acceptance-based policy')
     ap.add_argument('--kv',choices=('q8','q4','f16','auto'),default='q8',
                     help='target KV format for megakernel engines; Q4 is experimental and lossy')
     ap.add_argument('--check',action='store_true',help='validate files and print the command without loading the GPU')
@@ -53,8 +81,15 @@ def main():
         if len(candidates)!=1: ap.error('specify --model; expected exactly one local target')
         args.model=candidates[0]
     if not args.model.is_file(): ap.error('target GGUF does not exist')
-    depth=args.draft if args.draft is not None else (7 if args.engine in ('dflash2','megakernel-dflash2') else 4)
+    try:
+        profile = target_profile(args.model, args.llama_root.resolve())
+        depth = draft_depth(args.engine, args.draft, profile['mtp_layers'])
+    except (ValueError, KeyError, TypeError) as error:
+        ap.error(str(error))
     if args.ctx<=0 or depth<0: ap.error('invalid context or draft depth')
+    if args.verify_width is not None and args.engine != 'megakernel-dflash2':
+        ap.error('--verify-width requires --engine megakernel-dflash2')
+    if args.ctx > profile['model_context']: ap.error('requested context exceeds the model GGUF context')
     if args.engine in ('megakernel','megakernel-dflash2'):
         if args.engine=='megakernel' and depth>4: ap.error('megakernel supports at most four MTP proposals')
         cmd=[sys.executable,str(HERE/'server/mk_server.py'),'--model',str(args.model.resolve()),
@@ -65,6 +100,8 @@ def main():
             block=check_draft(args.model,args.draft_model,args.llama_root.resolve())
             if not 1<=depth<block: ap.error(f'native DFlash2 depth must be in [1,{block-1}]')
             cmd+=['--draft-model',str(args.draft_model.resolve())]
+            if args.verify_width is not None:
+                cmd+=['--verify-width',args.verify_width]
     else:
         if args.kv != 'q8': ap.error('--kv f16/q4/auto currently requires a megakernel engine')
         binary=args.llama_root/'build/bin/llama-server'
@@ -80,7 +117,7 @@ def main():
                   '--spec-draft-ngl','99','--spec-draft-type-k','q8_0','--spec-draft-type-v','q8_0']
         else: cmd+=['--spec-type','draft-mtp']
         cmd+=['--spec-draft-n-max',str(depth)]
-    print(json.dumps({'engine':args.engine,'command':cmd},ensure_ascii=False,indent=2),flush=True)
+    print(json.dumps({'engine':args.engine,'target':profile,'command':cmd},ensure_ascii=False,indent=2),flush=True)
     if not args.check: os.execv(cmd[0],cmd)
 
 

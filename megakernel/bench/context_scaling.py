@@ -13,13 +13,14 @@ import os
 from pathlib import Path
 import statistics
 import subprocess
+import sys
 import time
 
 HERE = Path(__file__).resolve().parent
 ENGINE = HERE.parent
 DEFAULT_MODEL = ENGINE.parent.parent / "models--ISTA-DASLab--Qwen3.8-27B-GSQ-RCO-GGUF/blobs/58fd826723939933dc86f45b7fe04545cbc2de1c70f6fe2cdd3858c87a98c12f"
 DEFAULT_DRAFT = ENGINE.parent.parent / "models-dflash2-qwen38/Qwen3.8-27B-DFlash2-Q4_K_M.gguf"
-DEFAULT_PROMPT = HERE / "optimization-analysis/llama-mtp4-short/prompt.ids"
+DEFAULT_PROMPT = HERE / "context-scaling-showcase/prompt.ids"
 
 
 def read_ids(path):
@@ -29,12 +30,12 @@ def read_ids(path):
     return ids
 
 
-def make_prompt(source, length, path):
+def make_prompt(source, length, path, end_token):
     # The bundled fixtures use Qwen's normal chat layout. Repeat the user-body
     # tokens while retaining its header and final assistant-generation suffix;
     # cycling the complete file would splice an im_end into the middle.
     try:
-        end = source.index(248046)  # Qwen <|im_end|>
+        end = source.index(end_token)
     except ValueError:
         end = -1
     if end >= 3:
@@ -43,14 +44,14 @@ def make_prompt(source, length, path):
         prefix, body, suffix = [], source, []
     if not body:
         raise ValueError("source prompt has no repeatable body tokens")
-    body_size = max(0, length - len(prefix) - len(suffix))
+    if length < len(prefix) + len(suffix):
+        raise ValueError("requested length cannot fit the chat header and generation suffix")
+    body_size = length - len(prefix) - len(suffix)
     repeated = (body * ((body_size + len(body) - 1) // len(body)))[:body_size]
     ids = prefix + repeated + suffix
-    # Very short requested lengths still retain an end marker and generation
-    # suffix; require enough room for those fixed tokens.
-    if len(ids) < length:
-        ids = prefix + (body * ((length - len(prefix) - len(suffix) + len(body) - 1) // len(body)))[:length - len(prefix) - len(suffix)] + suffix
-    path.write_text(" ".join(map(str, ids)) + "\n")
+    if path is not None:
+        path.write_text(" ".join(map(str, ids)) + "\n")
+    return ids
 
 
 def gpu_memory_mib():
@@ -74,7 +75,7 @@ def run_configuration(args, prompt_file, prompt_tokens, kv, ctx, output_dir):
     # Keep the measurement about the selected production path, not profiling hooks.
     for key in ("MK_PROFILE", "MK_PF_PROFILE", "MK_CHECK_FINITE", "MK_SCORE_PROBE_POSITION", "MK_SCORE_PROBE_FILE"):
         env.pop(key, None)
-    libdir = ENGINE.parents[1] / "llama.cpp/build/bin"
+    libdir = args.llama_root.resolve() / "build/bin"
     env["LD_LIBRARY_PATH"] = str(libdir) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
     stem = f"ctx{prompt_tokens}-{kv}"
     out_path, log_path = output_dir / f"{stem}.out", output_dir / f"{stem}.log"
@@ -197,8 +198,10 @@ def main():
     ap.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     ap.add_argument("--draft-model", type=Path, default=DEFAULT_DRAFT)
     ap.add_argument("--binary", type=Path, default=ENGINE / "qwen38_dflash")
-    ap.add_argument("--prompt-ids", type=Path, default=DEFAULT_PROMPT,
-                    help="tokenized source prompt to prefix/cycle to each requested length")
+    ap.add_argument("--llama-root", type=Path, default=ENGINE.parents[1] / "llama.cpp",
+                    help="llama.cpp checkout providing gguf-py for tokenizer validation")
+    ap.add_argument("--prompt-ids", type=Path,
+                    help="tokenized source prompt; the bundled default is for the original target only")
     ap.add_argument("--lengths", nargs="+", type=int, default=[256, 1024, 4096, 8192, 16384],
                     help="actual populated prompt lengths, in tokens")
     ap.add_argument("--kv-formats", nargs="+", choices=("q4", "q8"), default=["q8", "q4"])
@@ -218,15 +221,37 @@ def main():
         ap.error("tokens >= 2, reps >= 1, depth >= 1 and context-overhead >= 0 are required")
     if any(n < 1 for n in args.lengths):
         ap.error("prompt lengths must be positive")
+    if args.prompt_ids is None:
+        if args.model.resolve() != DEFAULT_MODEL.resolve():
+            ap.error("a different target requires explicit --prompt-ids tokenized with that target")
+        args.prompt_ids = DEFAULT_PROMPT
     for p in (args.model, args.draft_model, args.binary, args.prompt_ids):
         if not p.is_file():
             ap.error(f"file not found: {p}")
+    sys.path.insert(0, str(args.llama_root.resolve() / 'gguf-py'))
+    from gguf import GGUFReader
+    target, draft = GGUFReader(args.model), GGUFReader(args.draft_model)
+    def metadata(reader, key):
+        return reader.fields[key].contents() if key in reader.fields else None
+    for key in ('tokenizer.ggml.tokens', 'tokenizer.ggml.merges', 'tokenizer.ggml.eos_token_id'):
+        if metadata(target, key) != metadata(draft, key):
+            ap.error(f'target and draft tokenizer differ: {key}')
+    vocab_size = len(metadata(target, 'tokenizer.ggml.tokens'))
+    end_token = int(metadata(target, 'tokenizer.ggml.eos_token_id'))
     args.output.mkdir(parents=True, exist_ok=True)
     prompt_source = read_ids(args.prompt_ids)
+    if any(token >= vocab_size for token in prompt_source):
+        ap.error('source prompt contains token IDs outside the target vocabulary')
+    for length in args.lengths:
+        try:
+            make_prompt(prompt_source, length, None, end_token)
+        except ValueError as error:
+            ap.error(str(error))
     report = {"description": "Context scaling for populated prompts; prompt IDs are cycled from a source fixture.",
               "config": {"model": str(args.model), "draft_model": str(args.draft_model),
                          "binary": str(args.binary), "source_prompt_ids": str(args.prompt_ids),
                          "source_prompt_length": len(prompt_source), "kv_formats": args.kv_formats,
+                         "vocabulary_size": vocab_size, "eos_token_id": end_token,
                          "tokens": args.tokens, "reps": args.reps, "depth": args.depth,
                          "prefill_chunk": args.prefill_chunk, "temperature": args.temperature,
                          "seed": args.seed, "context_overhead": args.context_overhead},
@@ -237,7 +262,7 @@ def main():
     total = len(set(args.lengths)) * len(args.kv_formats)
     for i, length in enumerate(sorted(set(args.lengths)), 1):
         prompt_file = scratch / f"prompt-{length}.ids"
-        make_prompt(prompt_source, length, prompt_file)
+        make_prompt(prompt_source, length, prompt_file, end_token)
         # The engine keeps a minimum-sized base/workspace allocation even for
         # tiny prompts; longer points reserve enough for prompt and output.
         capacity = max(4096, length + args.tokens + args.context_overhead)

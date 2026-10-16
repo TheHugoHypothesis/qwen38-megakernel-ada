@@ -1,0 +1,64 @@
+[
+  {
+    "check": "phase-oracle-64-layers",
+    "returncode": 0,
+    "log": "phase-oracle.out"
+  },
+  {
+    "check": "iq2-decode-190m-fragments-memcheck",
+    "returncode": 0,
+    "log": "iq2-decode-memcheck.out"
+  },
+  {
+    "check": "iq-small-memcheck",
+    "returncode": 0,
+    "log": "iq-small-memcheck.out"
+  },
+  {
+    "check": "t4-full-model-trace-comparison",
+    "returncode": 0,
+    "results": "t4-trace/fixed-comparison.json"
+  },
+  {
+    "check": "reference-q8-preservation",
+    "returncode": 0,
+    "checks": 12,
+    "results": "reference-check.json"
+  },
+  {
+    "check": "external-q8",
+    "returncode": 0,
+    "cases": 36,
+    "environment": {
+      "MK_FFN_IQ_SMALL": "1"
+    },
+    "log": "external-q8.out"
+  },
+  {
+    "check": "external-q4",
+    "returncode": 0,
+    "cases": 36,
+    "environment": {
+      "MK_FFN_IQ_SMALL": "1"
+    },
+    "log": "external-q4.out"
+  },
+  {
+    "check": "http-verify3-q8",
+    "returncode": 0,
+    "http_checks": 16,
+    "results": "http-verify3-q8/results.json"
+  },
+  {
+    "check": "http-auto-96k-q4",
+    "returncode": 0,
+    "http_checks": 16,
+    "results": "http-auto-96k-q4/results.json"
+  },
+  {
+    "check": "http-default-active",
+    "returncode": 0,
+    "http_checks": 13,
+    "results": "http-default-active/results.json"
+  }
+]

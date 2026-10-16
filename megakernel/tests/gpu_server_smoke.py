@@ -18,10 +18,12 @@ def main():
     ap.add_argument("--ctx", type=int, default=32768)
     ap.add_argument("--draft-model", type=Path)
     ap.add_argument("--draft", type=int, default=4)
+    ap.add_argument("--verify-width", choices=("full", "3", "auto"))
     ap.add_argument("--kv", choices=("q8", "q4", "f16", "auto"), default="q8")
     ap.add_argument("--prefill-chunk", default="auto")
     ap.add_argument("--long-records", type=int, help="extended prefill and secret-code retrieval check")
     ap.add_argument("--port", type=int, default=18094)
+    ap.add_argument("--agentic", action="store_true", help="also verify tool round-trip and top-level reasoning effort")
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
     args.output.mkdir(parents=True, exist_ok=True)
@@ -30,6 +32,8 @@ def main():
            "--prefill-chunk", args.prefill_chunk, "--port", str(args.port)]
     if args.draft_model:
         cmd += ["--draft-model", str(args.draft_model.resolve())]
+    if args.verify_width is not None:
+        cmd += ["--verify-width", args.verify_width]
     if args.lib:
         cmd += ["--lib", str(args.lib.resolve())]
     base = f"http://127.0.0.1:{args.port}"
@@ -107,6 +111,27 @@ def main():
             turn = complete({**body, "messages": history})
             assert turn["choices"][0]["message"]["content"]
             reports += [{"check": "second_turn", "response": turn}]
+            if args.agentic:
+                reason = complete({"messages": [{"role": "user", "content": "What is 2 + 2? Answer with just the integer."}],
+                                   "reasoning_effort": "low", "temperature": 0, "max_tokens": 256})
+                msg = reason["choices"][0]["message"]
+                assert msg.get("reasoning_content"), "top-level reasoning effort did not produce reasoning"
+                assert "4" in msg.get("content", ""), "reasoning answer missing"
+                reports += [{"check": "top_level_reasoning", "response": reason}]
+                tools = [{"type": "function", "function": {"name": "lookup", "description": "Look up the value for a key.",
+                         "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}}]
+                tool_messages = [{"role": "user", "content": "Call lookup with key swift. Do not guess its value."}]
+                call = complete({**body, "messages": tool_messages, "tools": tools, "max_tokens": 128})
+                calls = call["choices"][0]["message"].get("tool_calls", [])
+                assert len(calls) == 1 and calls[0]["function"]["name"] == "lookup", "tool call missing"
+                assert json.loads(calls[0]["function"]["arguments"]) == {"key": "swift"}, "tool arguments differ"
+                reports += [{"check": "structured_tool_call", "response": call}]
+                tool_messages += [call["choices"][0]["message"],
+                                  {"role": "tool", "tool_call_id": calls[0]["id"], "content": "The value is SWIFT-4060."},
+                                  {"role": "user", "content": "Return the value from the tool only."}]
+                followup = complete({**body, "messages": tool_messages, "tools": tools})
+                assert "SWIFT-4060" in followup["choices"][0]["message"]["content"], "tool result was not used"
+                reports += [{"check": "tool_result_roundtrip", "response": followup}]
             records = args.long_records if args.long_records is not None else (240 if args.draft_model else 120)
             long_prompt = "\n".join(f"Record {i}: alpha beta gamma delta." for i in range(records))
             if args.long_records is not None:

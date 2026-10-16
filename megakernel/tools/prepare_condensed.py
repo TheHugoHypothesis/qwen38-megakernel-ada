@@ -35,7 +35,7 @@ def file_hash(path):
     return h.hexdigest()
 
 
-def token_mapping(target, draft):
+def token_mapping(target, draft, require_mask=True):
     """Validate a stable vocabulary subset, including types, specials and merges."""
     old = value(draft, "tokenizer.ggml.tokens")
     new = value(target, "tokenizer.ggml.tokens")
@@ -81,10 +81,14 @@ def token_mapping(target, draft):
             old_id = value(draft, key)
             if old_id not in reverse or value(target, key) != reverse[old_id]:
                 raise ValueError(f"special token ID mapping differs: {key}")
-    mask = value(draft, "tokenizer.ggml.mask_token_id")
-    if mask not in reverse:
-        raise ValueError("draft mask token was dropped")
-    return mapping, reverse[mask]
+    if "tokenizer.ggml.mask_token_id" in draft.fields:
+        mask = value(draft, "tokenizer.ggml.mask_token_id")
+        if mask not in reverse:
+            raise ValueError("draft mask token was dropped")
+        return mapping, reverse[mask]
+    if require_mask:
+        raise ValueError("missing metadata: tokenizer.ggml.mask_token_id")
+    return mapping, None
 
 
 def verify_source(target, original, mapping):
@@ -115,7 +119,8 @@ def verify_source(target, original, mapping):
             raise ValueError(f"non-vocabulary tensor changed: {t.name}")
 
 
-def export_gguf(reader, output, overrides=None, tokenizer_from=None, gather=None, drop_mtp=False):
+def export_gguf(reader, output, overrides=None, tokenizer_from=None, gather=None, drop_mtp=False,
+                gather_names=None):
     """Write then verify a temporary GGUF before making the output visible."""
     import gguf
     import numpy as np
@@ -129,6 +134,11 @@ def export_gguf(reader, output, overrides=None, tokenizer_from=None, gather=None
     os.close(fd)
     writer = gguf.GGUFWriter(temp, value(reader, "general.architecture"))
     changes = dict(overrides or {})
+    gather_names = SELECTORS if gather_names is None else set(gather_names)
+    if not gather_names <= (SELECTORS | VOCAB_WEIGHTS):
+        writer.close()
+        Path(temp).unlink()
+        raise ValueError("only vocabulary-indexed embedding/head/selector rows may be gathered")
     try:
         fields = dict(reader.fields)
         if tokenizer_from is not None:
@@ -155,10 +165,11 @@ def export_gguf(reader, output, overrides=None, tokenizer_from=None, gather=None
                 removed.append(t.name)
                 continue
             data = t.data
-            if gather is not None and t.name in SELECTORS:
-                if list(t.shape) != [256, len(value(reader, "tokenizer.ggml.tokens"))]:
-                    raise ValueError(f"selector is not vocabulary-indexed: {t.name}")
-                if t.tensor_type not in (gguf.GGMLQuantizationType.Q4_K, gguf.GGMLQuantizationType.Q6_K):
+            if gather is not None and t.name in gather_names:
+                width = 256 if t.name in SELECTORS else 5120
+                if list(t.shape) != [width, len(value(reader, "tokenizer.ggml.tokens"))]:
+                    raise ValueError(f"tensor is not vocabulary-indexed: {t.name}")
+                if t.name in SELECTORS and t.tensor_type not in (gguf.GGMLQuantizationType.Q4_K, gguf.GGMLQuantizationType.Q6_K):
                     raise ValueError(f"unsupported selector format: {t.name}")
                 data = np.ascontiguousarray(data[gather])
             writer.add_tensor(t.name, data, raw_dtype=t.tensor_type)

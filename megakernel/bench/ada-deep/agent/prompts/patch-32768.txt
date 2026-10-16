@@ -1,0 +1,2291 @@
+<|im_start|>system
+# Tools
+
+You have access to the following functions:
+
+<tools>
+{"type": "function", "function": {"name": "read_file", "description": "Read a repository file.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}}
+{"type": "function", "function": {"name": "run_tests", "description": "Run named tests.", "parameters": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}}}
+</tools>
+
+If you choose to call a function ONLY reply in the following format with NO suffix:
+
+<tool_call>
+<function=example_function_name>
+<parameter=example_parameter_1>
+value_1
+</parameter>
+<parameter=example_parameter_2>
+This is the value for the second parameter
+that can span
+multiple lines
+</parameter>
+</function>
+</tool_call>
+
+<IMPORTANT>
+Reminder:
+- Function calls MUST follow the specified format: an inner <function=...></function> block must be nested within <tool_call></tool_call> XML tags
+- Required parameters MUST be specified
+- You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after
+- If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
+</IMPORTANT>
+
+You are a coding agent. Inspect source and test evidence, make focused changes, and validate them. Use only the provided tools and visible files.<|im_end|>
+<|im_start|>user
+Inspect this CUDA inference server for request validation and state consistency. Preserve its OpenAI-compatible API.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+I will inspect the server and backend before proposing a focused patch.
+
+<tool_call>
+<function=read_file>
+<parameter=path>
+megakernel/server/mk_server.py
+</parameter>
+</function>
+</tool_call><|im_end|>
+<|im_start|>user
+<tool_response>
+FILE: megakernel/server/mk_server.py
+#!/usr/bin/env python3
+"""OpenAI-compatible chat server for the Qwen3.8-27B megakernel (a drop-in for the parts of
+llama-server's API that open-jet uses).
+
+  python3 server/mk_server.py -m model.gguf --port 18080 [--ctx 32768] [--draft 4]
+
+POST /v1/chat/completions (streaming or not): the request is rendered with the chat template stored
+in the GGUF (enable_thinking / preserve_thinking / reasoning_effort via chat_template_kwargs or
+top-level fields; high maps to xhigh and none disables thinking). Tools arrive via `tools`;
+reasoning is returned as `reasoning_content`, Qwen's XML tool calls as structured
+`tool_calls`.  Sampling: temperature, top_p, top_k (<= 32), min_p, seed.  Successive requests of a
+conversation reuse the processed tokens: the new prompt is matched against the sequence so far and
+only the rest is prefilled (rewinding to the end of the previous prompt if it diverges after that).
+GET /health, GET /v1/models.  One request at a time.
+"""
+import argparse
+import codecs
+import ctypes
+import json
+import math
+import os
+import random
+import re
+import sys
+import threading
+import time
+import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import jinja2
+from jinja2.sandbox import ImmutableSandboxedEnvironment
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+TOPK_MAX = 32
+
+
+def log(*a):
+    print("[mk-server]", *a, file=sys.stderr, flush=True)
+
+
+def model_mtp_layers(lib, model):
+    """Use the host-only CUDA loader schema check before choosing a decoder."""
+    L = ctypes.CDLL(lib)
+    if not hasattr(L, 'mk_model_mtp_layers'):
+        raise RuntimeError('rebuild libqwen38mk.so for automatic MTP detection, or specify --draft explicitly')
+    L.mk_model_mtp_layers.argtypes = [ctypes.c_char_p]
+    L.mk_model_mtp_layers.restype = ctypes.c_int
+    L.mk_last_error.restype = ctypes.c_char_p
+    mtp = L.mk_model_mtp_layers(os.fsencode(model))
+    if mtp < 0:
+        raise RuntimeError(L.mk_last_error().decode())
+    return mtp
+
+
+class Engine:
+    """ctypes binding of capi.cpp"""
+
+    def __init__(self, lib, model, ctx, n_draft, draft_vocab, kv_mode=-1, draft_model=None):
+        L = self.L = ctypes.CDLL(lib)
+        vp, ip, cp = ctypes.c_void_p, ctypes.POINTER(ctypes.c_int), ctypes.c_char_p
+        sig = {
+            "mk_new": (vp, [cp, ctypes.c_int, ctypes.c_int, cp, ctypes.c_int]),
+            "mk_last_error": (cp, []),
+            "mk_chat_template": (ctypes.c_int, [vp, cp, ctypes.c_int]),
+            "mk_tokenize": (ctypes.c_int, [vp, cp, ctypes.c_int, ip, ctypes.c_int]),
+            "mk_piece": (ctypes.c_int, [vp, ctypes.c_int, cp, ctypes.c_int]),
+            "mk_is_eog": (ctypes.c_int, [vp, ctypes.c_int]),
+            "mk_set_sampling": (ctypes.c_int, [vp, ctypes.c_float, ctypes.c_float, ctypes.c_int, ctypes.c_float,
+                                               ctypes.c_ulonglong]),
+            "mk_prefill": (ctypes.c_int, [vp, ip, ctypes.c_int]),
+            "mk_step": (ctypes.c_int, [vp, ip, ctypes.c_int]),
+            "mk_reset": (None, [vp]),
+            "mk_truncate": (ctypes.c_int, [vp, ctypes.c_int]),
+            "mk_sequence": (ctypes.c_int, [vp, ip, ctypes.c_int]),
+            "mk_committed": (ctypes.c_int, [vp]),
+            "mk_checkpoint_pos": (ctypes.c_int, [vp]),
+            "mk_rewind_to_checkpoint": (ctypes.c_int, [vp]),
+        }
+        for name, (res, args) in sig.items():
+            f = getattr(L, name)
+            f.restype, f.argtypes = res, args
+        if draft_model:
+            L.mk_new_dflash.restype=vp
+            L.mk_new_dflash.argtypes=[cp,cp,ctypes.c_int,ctypes.c_int,ctypes.c_int]
+            self.h=L.mk_new_dflash(model.encode(),draft_model.encode(),ctx,n_draft,kv_mode)
+        else:
+            self.h = L.mk_new(model.encode(), ctx, n_draft, draft_vocab.encode() if draft_vocab else None, kv_mode)
+        if not self.h:
+            raise RuntimeError(L.mk_last_error().decode())
+        self.ctx = ctx
+        self._pieces = {}
+
+    def _err(self, what):
+        return RuntimeError(f"{what}: {self.L.mk_last_error().decode()}")
+
+    def chat_template(self):
+        n = self.L.mk_chat_template(self.h, None, 0)
+        buf = ctypes.create_string_buffer(n + 1)
+        self.L.mk_chat_template(self.h, buf, n)
+        return buf.raw[:n].decode()
+
+    def tokenize(self, text):
+        b = text.encode()
+        cap = len(b) + 16
+        out = (ctypes.c_int * cap)()
+        n = self.L.mk_tokenize(self.h, b, len(b), out, cap)
+        if n < 0:
+            cap = -n
+            out = (ctypes.c_int * cap)()
+            n = self.L.mk_tokenize(self.h, b, len(b), out, cap)
+        return list(out[:n])
+
+    def piece(self, tok):
+        p = self._pieces.get(tok)
+        if p is None:
+            buf = ctypes.create_string_buffer(256)
+            n = self.L.mk_piece(self.h, tok, buf, 256)
+            p = self._pieces[tok] = buf.raw[:max(n, 0)]
+        return p
+
+    def is_eog(self, tok):
+        return bool(self.L.mk_is_eog(self.h, tok))
+
+    def set_sampling(self, temp, top_p, top_k, min_p, seed):
+        if self.L.mk_set_sampling(self.h, temp, top_p, top_k, min_p, seed) < 0:
+            raise self._err("sampling")
+
+    def prefill(self, toks):
+        arr = (ctypes.c_int * len(toks))(*toks)
+        r = self.L.mk_prefill(self.h, arr, len(toks))
+        if r < 0:
+            raise self._err("prefill")
+        return r
+
+    def step(self, remaining=None):
+        out = (ctypes.c_int * 8)()
+        cap = 8 if remaining is None or os.environ.get("MK_DFLASH_BUDGET") == "0" else min(8, max(1, remaining))
+        n = self.L.mk_step(self.h, out, cap)
+        if n < 0:
+            raise self._err("decode")
+        return list(out[:n])
+
+    def reset(self):
+        self.L.mk_reset(self.h)
+
+    def truncate(self, n):
+        if self.L.mk_truncate(self.h, n) < 0:
+            raise self._err("truncate")
+
+    def sequence(self):
+        n = self.L.mk_sequence(self.h, None, 0)
+        out = (ctypes.c_int * max(n, 1))()
+        self.L.mk_sequence(self.h, out, n)
+        return list(out[:n])
+
+    def committed(self):
+        return self.L.mk_committed(self.h)
+
+    def checkpoint_pos(self):
+        return self.L.mk_checkpoint_pos(self.h)
+
+    def rewind_to_checkpoint(self):
+        return self.L.mk_rewind_to_checkpoint(self.h) == 0
+
+
+# ---------------------------------------------------------------------------------------------
+# chat template and output parsing
+
+
+def make_template(src):
+    env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True, extensions=["jinja2.ext.loopcontrols"])
+
+    def raise_exception(msg):
+        raise jinja2.exceptions.TemplateError(msg)
+
+    env.globals["raise_exception"] = raise_exception
+    env.filters["tojson"] = lambda x, indent=None, ensure_ascii=False, sort_keys=False: json.dumps(
+        x, indent=indent, ensure_ascii=ensure_ascii, sort_keys=sort_keys)
+    return env.from_string(src)
+
+
+class BadRequest(Exception):
+    pass
+
+
+def normalize_messages(messages):
+    out = []
+    for m in messages:
+        m = dict(m)
+        content = m.get("content")
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") not in (None, "text"):
+                    raise BadRequest(f"unsupported content part type {part.get('type')!r} (text only)")
+        if content is None:
+            m["content"] = ""
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            calls = []
+            for tc in m["tool_calls"]:
+                tc = dict(tc)
+                fn = dict(tc.get("function") or {})
+                args = fn.get("arguments")
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args) if args.strip() else {}
+                    except json.JSONDecodeError:
+                        args = {}
+                fn["arguments"] = args if isinstance(args, dict) else {}
+                tc["function"] = fn
+                calls.append(tc)
+            m["tool_calls"] = calls
+        out.append(m)
+    return out
+
+
+TOOL_CALL_RE = re.compile(r"<tool_call>\s*<function=([^>\n]+)>(.*?)(?:</function>\s*(?:</tool_call>|$)|$)", re.S)
+PARAM_RE = re.compile(r"<parameter=([^>\n]+)>\n?(.*?)\n?</parameter>", re.S)
+
+
+def parse_tool_calls(text, tools):
+    schemas = {}
+    for t in tools or []:
+        fn = t.get("function", t)
+        schemas[fn.get("name")] = (fn.get("parameters") or {}).get("properties") or {}
+    calls = []
+    for m in TOOL_CALL_RE.finditer(text):
+        name = m.group(1).strip()
+        props = schemas.get(name, {})
+        args = {}
+        for p in PARAM_RE.finditer(m.group(2)):
+            key, val = p.group(1).strip(), p.group(2)
+            typ = (props.get(key) or {}).get("type")
+            if typ == "string" or (typ is None and not val.strip()[:1] in "[{0123456789-tfn"):
+                args[key] = val
+            else:
+                try:
+                    args[key] = json.loads(val)
+                except json.JSONDecodeError:
+                    args[key] = val
+        calls.append({"id": "call_" + uuid.uuid4().hex[:24], "type": "function",
+                      "function": {"name": name, "arguments": json.dumps(args, ensure_ascii=False)}})
+    return calls
+
+
+class OutputParser:
+    """Splits the generated text into reasoning (before </think>), content and tool-call markup."""
+
+    def __init__(self, thinking, tools):
+        self.mode = "reasoning" if thinking else "content_start"
+        self.tools = tools
+        self.buf = ""
+        self.tool_text = ""
+
+    def feed(self, text, final=False):
+        """returns [(kind, text)] with kind in {reasoning, content}"""
+        out = []
+        self.buf += text
+        while True:
+            if self.mode == "reasoning":
+                i = self.buf.find("</think>")
+                if i >= 0:
+                    out.append(("reasoning", self.buf[:i]))
+                    self.buf = self.buf[i + len("</think>"):]
+                    self.mode = "content_start"
+                    continue
+                keep = 0 if final else len("</think>") - 1
+                if len(self.buf) > keep:
+                    out.append(("reasoning", self.buf[:len(self.buf) - keep]))
+                    self.buf = self.buf[len(self.buf) - keep:]
+                break
+            if self.mode == "content_start":
+                self.buf = self.buf.lstrip()
+                if not self.buf:
+                    break
+                self.mode = "content"
+                continue
+            if self.mode == "content":
+                if self.tools:
+                    i = self.buf.find("<tool_call>")
+                    if i >= 0:
+                        out.append(("content", self.buf[:i].rstrip()))
+                        self.tool_text = self.buf[i:]
+                        self.buf = ""
+                        self.mode = "tools"
+                        break
+                    keep = 0 if final else len("<tool_call>") - 1
+                else:
+                    keep = 0
+                if final:
+                    out.append(("content", self.buf.rstrip()))
+                    self.buf = ""
+                elif len(self.buf) > keep:
+                    # trailing whitespace waits for more text: it is dropped before a tool call or the end
+                    seg = self.buf[:len(self.buf) - keep]
+                    head = seg.rstrip()
+                    out.append(("content", head))
+                    self.buf = seg[len(head):] + self.buf[len(self.buf) - keep:]
+                break
+            # tools: collect everything
+            self.tool_text += self.buf
+            self.buf = ""
+            break
+        return [(k, t) for k, t in out if t]
+
+
+# ---------------------------------------------------------------------------------------------
+
+
+class Server:
+    def __init__(self, args):
+        self.args = args
+        t0 = time.time()
+        self.eng = Engine(args.lib, args.model, args.ctx, args.draft, args.draft_vocab,
+                          {"f16": 0, "q8": 1, "q4": 2, "auto": -1}[args.kv],
+                          draft_model=getattr(args, "draft_model", None))
+        self.template = make_template(self.eng.chat_template())
+        self.model_id = os.path.basename(args.model)
+        self.lock = threading.Lock()
+        self.warned = set()
+        log(f"ready in {time.time() - t0:.1f} s: {self.model_id}, ctx {args.ctx}, {args.draft} drafts")
+        if getattr(args, 'draft_model', None):
+            log(f"DFlash verification: {os.environ.get('MK_DFLASH_VERIFY', 'full')}; "
+                f"T4 IQ fusion: {os.environ.get('MK_FFN_IQ_SMALL', '0')}")
+
+    def warn_once(self, key, msg):
+        if key not in self.warned:
+            self.warned.add(key)
+            log("warning:", msg)
+
+    def render(self, body):
+        kw = body.get("chat_template_kwargs")
+        if kw is not None and not isinstance(kw, dict):
+            raise BadRequest("chat_template_kwargs must be an object")
+        kw = kw or {}
+        ctx = dict(messages=normalize_messages(body.get("messages") or []), add_generation_prompt=True)
+        if body.get("tools"):
+            ctx["tools"] = body["tools"]
+        for k in ("enable_thinking", "preserve_thinking", "reasoning_effort"):
+            value = kw.get(k)
+            if value is None:
+                value = body.get(k)
+            if value is not None:
+                ctx[k] = value
+        for k in ("enable_thinking", "preserve_thinking"):
+            if k in ctx and not isinstance(ctx[k], bool):
+                raise BadRequest(f"{k} must be a boolean")
+        if "reasoning_effort" in ctx:
+            effort = ctx["reasoning_effort"]
+            if not isinstance(effort, str) or effort not in ("none", "low", "medium", "high", "xhigh"):
+                raise BadRequest("reasoning_effort must be one of none, low, medium, high, xhigh")
+            if effort == "none":
+                ctx["enable_thinking"] = False
+                del ctx["reasoning_effort"]
+            else:
+                ctx["reasoning_effort"] = "xhigh" if effort == "high" else effort
+        try:
+            text = self.template.render(**ctx)
+        except jinja2.exceptions.TemplateError as e:
+            raise BadRequest(f"chat template: {e}")
+        thinking = text.endswith("<think>\n")
+        log("reasoning:", f"on, effort={ctx.get('reasoning_effort', 'template default')}" if thinking else "off")
+        return text, thinking
+
+    def load_prompt(self, toks):
+        """brings the engine to `toks` processed, reusing what it has; returns (first token, reused count)"""
+        eng = self.eng
+        seq = eng.sequence()
+        lcp = 0
+        for a, b in zip(seq, toks):
+            if a != b:
+                break
+            lcp += 1
+        lcp = min(lcp, len(toks) - 1)  # at least one token is fed (it produces the next one)
+        if seq and lcp >= eng.committed():
+            eng.truncate(lcp)
+            return eng.prefill(toks[lcp:]), lcp
+        ck = eng.checkpoint_pos()
+        if 0 < ck <= lcp and eng.rewind_to_checkpoint():
+            return eng.prefill(toks[ck:]), ck
+        eng.reset()
+        return eng.prefill(toks), 0
+
+    def sampling(self, body):
+        temp = float(body.get("temperature", 1.0) if body.get("temperature") is not None else 1.0)
+        top_p = float(body.get("top_p", 0.95) if body.get("top_p") is not None else 0.95)
+        top_k = int(body.get("top_k", 20) if body.get("top_k") is not None else 20)
+        min_p = float(body.get("min_p", 0.0) if body.get("min_p") is not None else 0.0)
+        if not (math.isfinite(temp) and temp >= 0 and math.isfinite(top_p) and 0 < top_p <= 1
+                and math.isfinite(min_p) and 0 <= min_p <= 1):
+            raise BadRequest("invalid temperature, top_p or min_p")
+        seed = body.get("seed")
+        seed = random.getrandbits(63) if seed is None or int(seed) < 0 else int(seed)
+        if top_k <= 0 or top_k > TOPK_MAX:
+            if temp > 0:
+                raise BadRequest(f"top_k must be in [1, {TOPK_MAX}] for non-greedy sampling")
+        for k in ("presence_penalty", "frequency_penalty"):
+            if float(body.get(k) or 0) != 0:
+                raise BadRequest(f"{k} is not supported by the megakernel; "
+                                 f"set {k}=0 in the client's Sampling settings. "
+                                 "Use the llama.cpp backend to keep nonzero penalties.")
+        if float(body.get("repetition_penalty") or body.get("repeat_penalty") or 1.0) != 1.0:
+            raise BadRequest("repetition_penalty is not supported by the megakernel; "
+                             "set repetition_penalty=1 (or repeat_penalty=1) in the client's Sampling settings. "
+                             "Use the llama.cpp backend to keep repetition penalties.")
+        if temp <= 0:
+            self.eng.set_sampling(0.0, 1.0, TOPK_MAX, 0.0, seed)
+        else:
+            self.eng.set_sampling(temp, top_p, top_k, min_p, seed)
+
+    def generate(self, body, emit):
+        """runs one chat completion; emit(kind, payload) is called with ('reasoning'|'content', text) deltas.
+        Returns (finish_reason, tool_calls, usage). emit returning False aborts."""
+        text, thinking = self.render(body)
+        toks = self.eng.tokenize(text)
+        max_new = body.get("max_tokens") or body.get("max_completion_tokens") or body.get("n_predict") or -1
+        max_new = int(max_new)
+        limit = self.args.ctx - len(toks) - 16
+        if limit <= 0:
+            raise BadRequest(f"prompt of {len(toks)} tokens does not fit the context of {self.args.ctx}")
+        max_new = limit if max_new <= 0 else min(max_new, limit)
+        tools = body.get("tools") or []
+        self.sampling(body)
+        t0 = time.time()
+        tok, reused = self.load_prompt(toks)
+        t1 = time.time()
+        parser = OutputParser(thinking, tools)
+        dec = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        n_gen, finish, pending, aborted = 0, "length", [tok], False
+        while n_gen < max_new and not aborted:
+            if not pending:
+                pending = self.eng.step(max_new-n_gen if self.args.draft_model else None)
+            t = pending.pop(0)
+            n_gen += 1
+            if self.eng.is_eog(t):
+                finish = "stop"
+                break
+            for kind, delta in parser.feed(dec.decode(self.eng.piece(t))):
+                if emit(kind, delta) is False:
+                    aborted = True
+                    break
+        for kind, delta in parser.feed(dec.decode(b"", final=True), final=True):
+            emit(kind, delta)
+        calls = parse_tool_calls(parser.tool_text, tools) if parser.tool_text else []
+        if calls:
+            finish = "tool_calls"
+        t2 = time.time()
+        log(f"prompt {len(toks)} tok ({reused} reused) in {t1 - t0:.2f} s, {n_gen} tok in {t2 - t1:.2f} s "
+            f"({n_gen / max(t2 - t1, 1e-9):.1f} tok/s), {finish}")
+        usage = {"prompt_tokens": len(toks), "completion_tokens": n_gen, "total_tokens": len(toks) + n_gen,
+                 "prompt_tokens_details": {"cached_tokens": reused}}
+        timings = {"prompt_n": len(toks) - reused, "prompt_ms": (t1 - t0) * 1e3, "predicted_n": n_gen,
+                   "predicted_ms": (t2 - t1) * 1e3, "predicted_per_second": n_gen / max(t2 - t1, 1e-9)}
+        return finish, calls, usage, timings
+
+
+def make_handler(srv):
+    class H(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *a):
+            pass
+
+        def _json(self, code, obj):
+            data = json.dumps(obj).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            path = self.path.split("?")[0]
+            if path in ("/health", "/v1/health"):
+                self._json(200, {"status": "ok"})
+            elif path in ("/v1/models", "/models"):
+                self._json(200, {"object": "list", "data": [{"id": srv.model_id, "object": "model", "owned_by": "openjet"}]})
+            elif path == "/props":
+                self._json(200, {"default_generation_settings": {"n_ctx": srv.args.ctx}, "total_slots": 1})
+            else:
+                self._json(404, {"error": {"message": "not found", "type": "not_found_error"}})
+
+        def do_POST(self):
+            path = self.path.split("?")[0]
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(n) if n else b""
+            if path not in ("/v1/chat/completions", "/chat/completions"):
+                self._json(404 if not path.startswith("/slots") else 501,
+                           {"error": {"message": f"{path} is not supported by the megakernel server", "type": "not_supported"}})
+                return
+            try:
+                body = json.loads(raw or b"{}")
+            except json.JSONDecodeError:
+                self._json(400, {"error": {"message": "invalid JSON", "type": "invalid_request_error"}})
+                return
+            with srv.lock:
+                try:
+                    if body.get("stream"):
+                        self._stream(body)
+                    else:
+                        self._complete(body)
+                except BadRequest as e:
+                    self._json(400, {"error": {"message": str(e), "type": "invalid_request_error"}})
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                except Exception as e:  # engine failure: report it, keep serving
+                    log("error:", repr(e))
+                    try:
+                        self._json(500, {"error": {"message": str(e), "type": "server_error"}})
+                    except Exception:
+                        pass
+
+        def _complete(self, body):
+            parts = {"reasoning": [], "content": []}
+            finish, calls, usage, timings = srv.generate(body, lambda k, t: parts[k].append(t))
+            msg = {"role": "assistant", "content": "".join(parts["content"]) or (None if calls else "")}
+            if parts["reasoning"]:
+                msg["reasoning_content"] = "".join(parts["reasoning"]).strip()
+            if calls:
+                msg["tool_calls"] = calls
+            self._json(200, {"id": "chatcmpl-" + uuid.uuid4().hex, "object": "chat.completion", "created": int(time.time()),
+                             "model": srv.model_id, "choices": [{"index": 0, "message": msg, "finish_reason": finish}],
+                             "usage": usage, "timings": timings})
+
+        def _stream(self, body):
+            cid, created = "chatcmpl-" + uuid.uuid4().hex, int(time.time())
+            started = [False]
+
+            def chunk(delta, finish=None, usage=None, timings=None):
+                obj = {"id": cid, "object": "chat.completion.chunk", "created": created, "model": srv.model_id,
+                       "choices": [] if delta is None else [{"index": 0, "delta": delta, "finish_reason": finish}]}
+                if usage is not None:
+                    obj["usage"] = usage
+                if timings is not None:
+                    obj["timings"] = timings
+                data = b"data: " + json.dumps(obj, ensure_ascii=False).encode() + b"\n\n"
+                self.wfile.write(b"%x\r\n" % len(data) + data + b"\r\n")
+                self.wfile.flush()
+
+            def head():
+                if not started[0]:
+                    started[0] = True
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.send_header("Cache-Control", "no-cache")
+                    self.send_header("Transfer-Encoding", "chunked")
+                    self.end_headers()
+                    chunk({"role": "assistant", "content": None})
+
+            def emit(kind, text):
+                head()
+                try:
+                    chunk({"reasoning_content": text} if kind == "reasoning" else {"content": text})
+                except (BrokenPipeError, ConnectionResetError):
+                    return False
+                return True
+
+            # render / tokenize errors are reported as a 400 before the stream starts
+            srv.render(body)
+            finish, calls, usage, timings = srv.generate(body, emit)
+            head()
+            for i, c in enumerate(calls):
+                chunk({"tool_calls": [{"index": i, **c}]})
+            chunk({}, finish=finish, timings=timings)
+            if (body.get("stream_options") or {}).get("include_usage"):
+                chunk(None, usage=usage)
+            data = b"data: [DONE]\n\n"
+            self.wfile.write(b"%x\r\n" % len(data) + data + b"\r\n0\r\n\r\n")
+            self.wfile.flush()
+
+    return H
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-m", "--model", required=True)
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=18080)
+    ap.add_argument("-c", "--ctx", type=int, default=32768)
+    ap.add_argument("-d", "--draft", type=int)
+    ap.add_argument("--draft-vocab", default=os.path.join(os.path.dirname(HERE), "draft_vocab_32k.bin"))
+    ap.add_argument("--draft-model", help="native DFlash2 GGUF; --draft selects 1..7 proposals")
+    ap.add_argument("--verify-width", choices=("full", "3", "auto"),
+                    help="native DFlash2 only; keeps the trained draft block, optionally verifies a shorter prefix")
+    ap.add_argument("--prefill-chunk", default="auto", help="auto by free VRAM, or 128..2048 in multiples of 128")
+    ap.add_argument("--lib", default=os.path.join(os.path.dirname(HERE), "libqwen38mk.so"))
+    ap.add_argument("--kv", choices=["auto", "f16", "q8", "q4"], default="auto",
+                    help="Target KV cache format; q4 is lossy symmetric int4 (auto chooses FP16/Q8 only)")
+    args = ap.parse_args()
+    if args.verify_width is not None:
+        if not args.draft_model:
+            ap.error('--verify-width requires a native --draft-model')
+        os.environ['MK_DFLASH_VERIFY'] = args.verify_width
+        if args.verify_width != 'full':
+            os.environ.setdefault('MK_FFN_IQ_SMALL', '1')
+    if args.draft is None:
+        args.draft = 7 if args.draft_model else 4 if model_mtp_layers(args.lib, args.model) else 0
+    os.environ["MK_PREFILL_CHUNK"] = str(args.prefill_chunk)
+    srv = Server(args)
+    httpd = ThreadingHTTPServer((args.host, args.port), make_handler(srv))
+    httpd.daemon_threads = True
+    log(f"listening on http://{args.host}:{args.port}")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()
+
+END FILE
+
+FILE: megakernel/capi.cpp
+// C API over MKEngine plus libllama's tokenizer (vocab only), for the HTTP server (server/mk_server.py).
+#include <algorithm>
+#include <cstring>
+#include <exception>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#include "llama.h"
+#include "qwen38_mk.h"
+#include "dflash_native.h"
+#include "model_spec.h"
+#include "dflash_verify_policy.h"
+
+namespace {
+struct Handle {
+    MKEngine * eng = nullptr;
+    llama_model * lm = nullptr;
+    const llama_vocab * vocab = nullptr;
+    MKDFlashNative * dflash=nullptr;
+    int draft_depth=0;
+    std::unique_ptr<DFlashVerifyPolicy> verify_policy;
+    std::string err;
+    ~Handle() { delete dflash;delete eng; if (lm) llama_model_free(lm); }
+};
+thread_local std::string g_err;
+}
+
+extern "C" {
+
+const char * mk_last_error() { return g_err.c_str(); }
+
+// Host-only schema inspection, including standard Swift and stripped targets.
+// No CUDA initialization, tokenizer allocation, or weight upload is needed.
+int mk_model_mtp_layers(const char * model) {
+    try {
+        if (!model) throw std::runtime_error("missing model path");
+        gguf::File file(model);
+        gguf::validate_qwen38(file, false);
+        const auto it = file.ints.find("qwen35.nextn_predict_layers");
+        return it == file.ints.end() ? 0 : int(it->second);
+    } catch (const std::exception & e) {
+        g_err = e.what();
+        return -1;
+    }
+}
+
+void * mk_new(const char * model, int ctx, int n_draft, const char * draft_vocab, int kv_mode) {
+    try {
+        llama_backend_init();
+        llama_model_params mp = llama_model_default_params();
+        mp.vocab_only = true;
+        auto h = std::make_unique<Handle>();
+        h->lm = llama_model_load_from_file(model, mp);
+        if (!h->lm) throw std::runtime_error("failed to load the vocabulary");
+        h->vocab = llama_model_get_vocab(h->lm);
+        h->eng = new MKEngine(model, ctx, n_draft, draft_vocab ? draft_vocab : "", kv_mode);
+        return h.release();
+    } catch (const std::exception & e) {
+        g_err = e.what();
+        return nullptr;
+    }
+}
+
+void mk_free(void * hp) {
+    auto * h = static_cast<Handle *>(hp);
+    delete h;
+}
+
+void * mk_new_dflash(const char * model,const char * draft,int ctx,int depth,int kv_mode) {
+    try {
+        if(!model||!draft||depth<1||depth>7)throw std::runtime_error("DFlash2 needs target, draft and depth in [1,7]");
+        llama_backend_init();auto mp=llama_model_default_params();mp.vocab_only=true;
+        auto h=std::make_unique<Handle>();
+        h->lm=llama_model_load_from_file(model,mp);
+        if(!h->lm)throw std::runtime_error("cannot load target vocabulary");
+        h->vocab=llama_model_get_vocab(h->lm);
+        std::unique_ptr<llama_model,decltype(&llama_model_free)> dm(llama_model_load_from_file(draft,mp),llama_model_free);
+        if(!dm)throw std::runtime_error("cannot load draft vocabulary");
+        const auto * dv=llama_model_get_vocab(dm.get());
+        if(llama_vocab_n_tokens(dv)!=llama_vocab_n_tokens(h->vocab)||llama_vocab_bos(dv)!=llama_vocab_bos(h->vocab)||
+           llama_vocab_eos(dv)!=llama_vocab_eos(h->vocab)||llama_vocab_type(dv)!=llama_vocab_type(h->vocab))
+            throw std::runtime_error("draft/target vocabulary metadata differ");
+        for(int id=0;id<llama_vocab_n_tokens(dv);id++)
+            if(std::strcmp(llama_vocab_get_text(dv,id),llama_vocab_get_text(h->vocab,id))||
+               llama_vocab_get_attr(dv,id)!=llama_vocab_get_attr(h->vocab,id))
+                throw std::runtime_error("draft/target token tables differ");
+        // Draft weights, sliding KV/checkpoint, encoder workspace, feature
+        // capture and CUDA graph/library margin must precede auto chunk sizing.
+        h->eng=new MKEngine(model,ctx,0,"",kv_mode,size_t(1792)*1024*1024);
+        h->dflash=new MKDFlashNative(*h->eng,draft,ctx,llama_vocab_mask(dv));h->draft_depth=depth;
+        h->verify_policy=std::make_unique<DFlashVerifyPolicy>(depth,DFlashVerifyPolicy::environment());
+        auto * owner=h.get();
+        h->eng->enable_device_features(h->dflash->layers(),[owner](int pos,int n,const float * f){owner->dflash->inject_device(pos,n,f);});
+        return h.release();
+    } catch(const std::exception & e){g_err=e.what();return nullptr;}
+}
+
+// chat template stored in the GGUF (tokenizer.chat_template); returns its length, copies up to cap
+int mk_chat_template(void * hp, char * buf, int cap) {
+    auto * h = static_cast<Handle *>(hp);
+    const char * t = llama_model_chat_template(h->lm, nullptr);
+    if (!t) return -1;
+    const int n = (int) strlen(t);
+    if (buf && cap > 0) memcpy(buf, t, std::min(n, cap));
+    return n;
+}
+
+// text -> token ids (special tokens such as [special:im_start] parsed); returns the count (negative: -needed)
+int mk_tokenize(void * hp, const char * text, int len, int * out, int cap) {
+    auto * h = static_cast<Handle *>(hp);
+    return llama_tokenize(h->vocab, text, len, out, cap, false, true);
+}
+
+// token -> its bytes (special tokens rendered as text); returns the byte count
+int mk_piece(void * hp, int tok, char * buf, int cap) {
+    auto * h = static_cast<Handle *>(hp);
+    return llama_token_to_piece(h->vocab, tok, buf, cap, 0, true);
+}
+
+int mk_is_eog(void * hp, int tok) { return llama_vocab_is_eog(static_cast<Handle *>(hp)->vocab, tok) ? 1 : 0; }
+
+int mk_set_sampling(void * hp, float temp, float top_p, int top_k, float min_p, unsigned long long seed) {
+    try {
+        static_cast<Handle *>(hp)->eng->set_sampling(temp, top_p, top_k, min_p, seed);
+        return 0;
+    } catch (const std::exception & e) {
+        g_err = e.what();
+        return -1;
+    }
+}
+
+// appends tokens to the sequence; returns the first generated token (negative on error)
+int mk_prefill(void * hp, const int * toks, int n) {
+    try {
+        auto * h=static_cast<Handle *>(hp);
+        if(!toks||n<1)throw std::runtime_error("prefill requires token IDs");
+        int first=h->eng->prefill(std::vector<int>(toks,toks+n));
+        if(h->dflash){h->dflash->checkpoint();h->verify_policy->reset();}
+        return first;
+    } catch (const std::exception & e) {
+        g_err = e.what();
+        return -1;
+    }
+}
+
+// One decode cycle. DFlash bounds verification/output by cap, preserving its
+// full trained draft block; cap=1 commits the anchor without a speculative draft.
+// MTP retains its minimum buffer capacity. Returns the count (negative on error).
+int mk_step(void * hp, int * out, int cap) {
+    try {
+        std::vector<int> v;
+        auto * h=static_cast<Handle *>(hp);
+        if(!out||cap<1||(!h->dflash&&cap<h->eng->n_draft()+1))throw std::runtime_error("step output capacity is too small");
+        if(h->dflash) {
+            std::vector<int> proposals;
+            const int width=h->verify_policy->width();
+            if(cap>1) {
+                proposals=h->dflash->draft(h->eng->position(),h->eng->sequence().back(),h->draft_depth);
+                proposals.resize(std::min(width,cap-1));
+            }
+            const long before=h->eng->stats.accepted;
+            h->eng->verify_external(proposals,v);
+            if(int(proposals.size())==width)
+                h->verify_policy->observe(width,int(h->eng->stats.accepted-before));
+        } else h->eng->step(v);
+        const int n = std::min((int) v.size(), cap);
+        for (int i = 0; i < n; i++) out[i] = v[i];
+        return n;
+    } catch (const std::exception & e) {
+        g_err = e.what();
+        return -1;
+    }
+}
+
+void mk_reset(void * hp) { auto * h=static_cast<Handle *>(hp);h->eng->reset();if(h->dflash){h->dflash->reset();h->verify_policy->reset();} }
+
+int mk_truncate(void * hp, int len) {
+    try {
+        auto * h=static_cast<Handle *>(hp);h->eng->truncate(len);
+        if(h->dflash){h->dflash->truncate(len);h->verify_policy->reset();}
+        return 0;
+    } catch (const std::exception & e) {
+        g_err = e.what();
+        return -1;
+    }
+}
+
+// copies the sequence so far (up to cap tokens); returns its length
+int mk_sequence(void * hp, int * out, int cap) {
+    const auto & s = static_cast<Handle *>(hp)->eng->sequence();
+    const int n = (int) s.size();
+    if (out)
+        for (int i = 0; i < std::min(n, cap); i++) out[i] = s[i];
+    return n;
+}
+
+int mk_committed(void * hp) { return static_cast<Handle *>(hp)->eng->committed(); }
+int mk_checkpoint_pos(void * hp) { return static_cast<Handle *>(hp)->eng->checkpoint_pos(); }
+int mk_rewind_to_checkpoint(void * hp) {
+    try {auto * h=static_cast<Handle *>(hp);
+        if(!h->eng->rewind_to_checkpoint())return -1;
+        if(h->dflash&&!h->dflash->restore_checkpoint())throw std::runtime_error("draft checkpoint missing");
+        if(h->verify_policy)h->verify_policy->reset();
+        return 0;
+    } catch(const std::exception & e){g_err=e.what();return -1;}
+}
+
+void mk_stats(void * hp, long * cycles, long * drafted, long * accepted) {
+    const auto & s = static_cast<Handle *>(hp)->eng->stats;
+    *cycles = s.cycles;
+    *drafted = s.drafted;
+    *accepted = s.accepted;
+}
+
+} // extern "C"
+
+END FILE
+
+FILE: megakernel/qwen38_mk.cu
+// Persistent cooperative "megakernel" for Qwen3.8-27B (llama.cpp arch "qwen35", shared with Qwen3.5/3.6;
+// 64 layers: 48 Gated-DeltaNet + 16 gated full-attention, plus one MTP block), tuned for
+// RTX 3090 (sm_86, 82 SMs).
+//
+// One kernel launch executes an entire speculative decoding cycle:
+//   main forward over T = 1 + n_draft tokens  ->  lm_head + greedy verify on device
+//   -> MTP catch-up rows  ->  n_draft MTP draft steps.
+// Phases inside the launch are separated by a software grid barrier.  Weights stay in their
+// GGUF k-quant encodings (Q6_K / Q8_0 are re-laid-out for aligned loads, values unchanged)
+// and are streamed once per cycle with int8 dp4a dot products against q8 activations.
+//
+// Gated-DeltaNet rollback after rejected drafts is done by lazy replay: the committed state
+// only ever includes surely-accepted tokens; accepted drafts are replayed from a small ring
+// of (k, v, g, beta) at the start of the next cycle, so no state snapshots are written.
+
+#include <cuda_fp16.h>
+#include <cuda_runtime.h>
+#include <cooperative_groups.h>
+#include <cublas_v2.h>
+#include <mma.h>
+#include "ggml.h"
+#include "ggml-alloc.h"
+#include "ggml-backend.h"
+#include "ggml-cuda.h"
+#include "native_quant.cuh"
+#include "kv_quant.cuh"
+#include "native_iq_mma.cuh"
+
+#include <algorithm>
+#include <map>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "gguf.h"
+#include "model_spec.h"
+#include "qwen38_mk.h"
+
+#define CK(x)                                                                                   \
+    do {                                                                                        \
+        cudaError_t e_ = (x);                                                                   \
+        if (e_ != cudaSuccess) {                                                                \
+            fprintf(stderr, "CUDA error %s at %s:%d: %s\n", #x, __FILE__, __LINE__,             \
+                    cudaGetErrorString(e_));                                                    \
+            throw std::runtime_error(std::string("CUDA: ") + cudaGetErrorString(e_));                                                                            \
+        }                                                                                       \
+    } while (0)
+
+namespace {
+
+constexpr int D = 5120, FF = 17408, NL = 64, NLA = 65;
+constexpr int NH = 24, NKV = 4, HD = 256;
+constexpr int NKH = 16, NVH = 48, HK = 128;
+constexpr int QKV = 10240, VD = 6144, QG = 12288, KVD = 1024;
+constexpr int MAXT = 8;
+constexpr int NT = 512, NW = NT / 32;
+constexpr float EPS = 1e-6f;
+constexpr float ROPE_BASE = 10000000.0f;
+constexpr int CONV_RING = 16, KV_RING = 16, H_RING = 16;
+static_assert(CONV_RING>=MAXT+3,"new tokens must not overwrite convolution history");
+constexpr int KVGB = NKH * HK + NVH * HK + 2 * NVH; // k | v | g | beta
+constexpr int KVGB_V = NKH * HK, KVGB_G = KVGB_V + NVH * HK, KVGB_B = KVGB_G + NVH;
+constexpr int N_ATT_SLOTS = 17; // 16 trunk attention layers + MTP block
+constexpr int MAX_CH = 32;      // attention split-K chunks per kv head
+constexpr int DV_EXTRA = 4096;  // draft-vocabulary rows reserved for tokens of the current sequence
+constexpr int AB_SPLIT = 4;     // K-chunks per delta-net alpha/beta row
+constexpr int U_D = D / 32, U_FF = FF / 32, U_VD = VD / 32, U_EH = 2 * D / 32;
+constexpr int UMAX = U_FF;
+
+constexpr int AR = 6 * MAXT;   // attention query rows per kv head (6 q heads x tokens)
+constexpr int SM_XU = 4 * UMAX; // activation units (x tokens) shared memory holds; T = 5 ffn_down fills in two halves
+constexpr int SM_XA = 0;
+constexpr int SM_XB = SM_XA + SM_XU * 16;
+constexpr int SM_XM = SM_XB + SM_XU * 16;
+constexpr int SM_MISC = SM_XM + SM_XU * 8;
+constexpr int ATP = 32; // attention: positions per K/V tile (two tiles in flight)
+constexpr int KVQ_ROW = 256 + 16; // staged q8 K or V row: 256 int8 values + 8 fp16 scales
+// K/V tile region: fp16 cache: 2 stages of fp16 K/V tiles; q8 cache: one fp16 K/V tile + 2 stages of q8 tiles
+constexpr int SM_ATTN_KV = (4 * ATP * (256 + 8) * 2 > 2 * ATP * (256 + 8) * 2 + 4 * ATP * KVQ_ROW)
+                               ? 4 * ATP * (256 + 8) * 2 : 2 * ATP * (256 + 8) * 2 + 4 * ATP * KVQ_ROW;
+constexpr int SM_ATTN = 32 * (256 + 8) * 2 + SM_ATTN_KV + 32 * ATP * 4 + 32 * (ATP + 8) * 2 + 96 * 4; // Q, K/V, S, P, stats
+constexpr int SM_TOTAL = (SM_MISC + 2048 > SM_ATTN ? SM_MISC + 2048 : SM_ATTN);
+static_assert(SM_TOTAL <= 99 * 1024, "shared memory budget");
+
+enum { T_F32 = 0, T_Q8_0 = 8, T_Q4K = 12, T_Q5K = 13, T_Q6K = 14, T_ANY = -1 };
+enum { MODE_PREFILL = 0, MODE_DECODE = 1, MODE_BENCH = 2 };
+
+struct Mat {
+    const uint8_t * w;
+    const __half * d; // per-row block scales for repacked Q6_K / Q8_0
+    int type, K, N, rb, nd;
+};
+
+struct LayerW {
+    int attn;
+    const float *attn_norm, *post_norm;
+    // gated delta net
+    Mat qkv, gate, sout;
+    const float *ab, *conv, *dt, *A, *snorm;
+    // gated attention
+    Mat q, k, v, o;
+    const float *qn, *kn;
+    // ffn
+    Mat fg, fu, fd;
+};
+
+struct ModelW {
+    LayerW L[NLA];
+    Mat eh, head;
+    Mat head_d;            // MTP draft head: subset of lm_head rows (== head when no subset is used)
+    const int * draft_ids; // row -> token id for head_d (nullptr: identity)
+    const float *enorm, *hnorm, *shnorm, *onorm;
+    Mat embedding;
+    const uint8_t * embd;
+};
+
+// Quantised activation vector(s) in the "unit" layout consumed by the GEMV:
+// unit u = (super-block b, 64-group p, half h) covers elements A=[256b+64p+16h,+16) and
+// B=[256b+64p+32+16h,+16).  xa/xb hold the int8 values, d the per-32 scales of the natural
+// blocks the A/B halves live in, qs the int sums of each 16-chunk, ssq per natural block x^2.
+struct QBuf {
+    int8_t *xa, *xb;
+    uint2 * meta; // per unit: half2 (scale of A / B chunk), short2 (int sums of A / B chunk)
+    float * ssq;
+    int U;
+};
+
+struct Ctl {
+    int n;         // position of tok[0]
+    int tok[8];    // tokens fed to the main model this cycle
+    int dn_c;      // delta-net committed position (state covers positions < dn_c)
+    int mtp_valid; // MTP kv valid for positions < mtp_valid
+    int n_out, out[8];
+    int n_acc;
+    int mtp_R, mtp_logits, mtp_P;
+    int mtp_pos[8], mtp_tok[8];
+    int tgt[8];
+    int pad[8];
+};
+
+struct Bufs {
+    float *x, *xm;
+    QBuf qn, qo, qa, qe;
+    float *z, *ab, *qbuf, *kbuf, *vbuf;
+    float *conv, *kvgb, *dstate;
+    void *kc, *vc;     // KV payload [slot][kv head][ctx]: FP16, signed Q8 or packed signed Q4
+    __half *ksc, *vsc; // ... with one fp16 scale per 32 values: [slot][kv head][ctx][HD / 32]
+    int kv_mode;
+    float * apart;
+    float2 * aml;
+    float *h_hist, *hm;
+    const float2 * rope; // [ctx][32] (cos, sin) of pos * base^(-2i/64)
+    float2 * blk_best; // per block: best (logit, id) per row, or the TOPK_MAX best when sampling
+    float2 * cand;     // [MAXT][TOPK_MAX] best (logit, id) of the main lm_head rows, descending (sampling)
+    unsigned * bar;
+    unsigned * cnt;
+    Ctl * ctl;
+    unsigned long long * prof; // optional per-barrier timestamps (block 0)
+    int ctx;
+    int * numeric_error; // optional finite-value diagnostics
+    float * features;
+    int feature_map[NL];
+    int n_features;
+    bool ffn_iq_fused;
+    bool iq_inline;
+    bool ffn_iq_mma;
+    bool ffn_down_global;
+    bool iq_paired;
+    bool ffn_iq_small; // Ada T=4 experiment: same ordered IQ dots, shared gate/up input loads
+#ifdef MK_PHASE_ONLY
+    float * gu_probe; // isolated-test diagnostics; absent from production buffers
+#endif
+};
+
+__constant__ ModelW cW;
+__constant__ Bufs cB;
+
+struct Launch {
+    int mode, T, last, ndraft;
+    int score; // prefill only: greedy argmax for every row (teacher-forced evaluation), no MTP
+    // sampling (temp > 0; greedy otherwise), applied in llama.cpp's order: top_k, top_p, min_p, temperature
+    float temp, top_p, min_p;
+    int top_k; // <= TOPK_MAX
+    unsigned long long seed;
+};
+constexpr int TOPK_MAX = 32; // candidates kept per main lm_head row when sampling
+
+// ------------------------------------------------------------------------------------------
+// small device helpers
+// ------------------------------------------------------------------------------------------
+
+// Weights are streamed once per cycle: bypass L1 and mark them evict-first in L2 so that data
+// prefetched with evict-last (recurrent state, KV cache) survives the stream.
+__device__ __forceinline__ unsigned long long l2_evict_first() {
+    unsigned long long pol;
+    asm("createpolicy.fractional.L2::evict_first.b64 %0, 1.0;" : "=l"(pol));
+    return pol;
+}
+__device__ __forceinline__ int4 ldw4(const void * p) {
+    int4 r;
+    asm("ld.global.nc.L1::no_allocate.L2::cache_hint.v4.s32 {%0,%1,%2,%3}, [%4], %5;"
+        : "=r"(r.x), "=r"(r.y), "=r"(r.z), "=r"(r.w)
+        : "l"(p), "l"(l2_evict_first()));
+    return r;
+}
+__device__ __forceinline__ int2 ldw2(const void * p) {
+    int2 r;
+    asm("ld.global.nc.L1::no_allocate.L2::cache_hint.v2.s32 {%0,%1}, [%2], %3;" : "=r"(r.x), "=r"(r.y) : "l"(p), "l"(l2_evict_first()));
+    return r;
+}
+__device__ __forceinline__ int ldw1(const void * p) {
+    int r;
+    asm("ld.global.nc.L1::no_allocate.L2::cache_hint.s32 %0, [%1], %2;" : "=r"(r) : "l"(p), "l"(l2_evict_first()));
+    return r;
+}
+__device__ __forceinline__ void pf_l2(const void * p) { asm volatile("prefetch.global.L2::evict_last [%0];" ::"l"(p)); }
+// prefetch `bytes` starting at p (128-byte lines) with the threads of the calling block
+__device__ __forceinline__ void pf_block(const void * p, int bytes) {
+    for (int off = threadIdx.x * 128; off < bytes; off += NT * 128) pf_l2(reinterpret_cast<const uint8_t *>(p) + off);
+}
+__device__ __forceinline__ float4 ldw4f(const float * p) {
+    int4 r = ldw4(p);
+    return make_float4(__int_as_float(r.x), __int_as_float(r.y), __int_as_float(r.z), __int_as_float(r.w));
+}
+__device__ __forceinline__ unsigned short ldwu16(const void * p) {
+    unsigned short r;
+    asm("ld.global.nc.L1::no_allocate.u16 %0, [%1];" : "=h"(r) : "l"(p));
+    return r;
+}
+
+__device__ __forceinline__ float wsum(float v) {
+#pragma unroll
+    for (int o = 16; o > 0; o >>= 1) v += __shfl_xor_sync(0xffffffffu, v, o);
+    return v;
+}
+__device__ __forceinline__ float wmax(float v) {
+#pragma unroll
+    for (int o = 16; o > 0; o >>= 1) v = fmaxf(v, __shfl_xor_sync(0xffffffffu, v, o));
+    return v;
+}
+__device__ __forceinline__ float silu(float x) { return x / (1.0f + expf(-x)); }
+
+enum {
+    PH_EMBED, PH_ATTN_PROJ, PH_ATTN_CORE, PH_ATTN_COMB, PH_RESID_O, PH_DN_PROJ, PH_DN_CORE, PH_RESID_SOUT, PH_FFN_GU,
+    PH_FFN_DOWN, PH_LMHEAD, PH_MTP_M0, PH_MTP_EH, PH_MTP_ATTN_PROJ, PH_MTP_ATTN_CORE, PH_MTP_ATTN_COMB, PH_MTP_RESID_O,
+    PH_MTP_FFN_GU, PH_MTP_FFN_DOWN, PH_MTP_LMHEAD, PH_COUNT
+};
+
+__device__ __forceinline__ unsigned long long gtimer() {
+    unsigned long long t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t));
+    return t;
+}
+
+__shared__ unsigned s_bar_k; // index of the last grid barrier passed (profiling only)
+extern __shared__ __align__(16) uint8_t smem[]; // dynamic shared memory of the persistent block
+
+// CUDA cooperative grid barrier publishes all phase writes before the next phase.
+__device__ __forceinline__ void gsync(unsigned & epoch, int tag) {
+    __syncthreads();
+    if (threadIdx.x == 0 && cB.prof) {
+        const unsigned k=epoch/gridDim.x+1;
+        if(k<1024) cB.prof[4096+k*128+blockIdx.x]=gtimer();
+    }
+    cooperative_groups::this_grid().sync();
+    if (threadIdx.x == 0) {
+        epoch += gridDim.x;
+        if(cB.prof && blockIdx.x==0) {
+            const unsigned k=epoch/gridDim.x;
+            s_bar_k=k;
+            if(k<2048) cB.prof[k]=(gtimer()<<8)|unsigned(tag);
+        }
+    }
+    __syncthreads();
+    if (cB.numeric_error && blockIdx.x == 0) {
+        const float * values = nullptr;
+        int count=0;
+        if (tag==PH_EMBED || tag==PH_RESID_O || tag==PH_RESID_SOUT || tag==PH_FFN_DOWN) {
+            values=cB.x;count=MAXT*D;
+        } else if(tag==PH_ATTN_PROJ || tag==PH_MTP_ATTN_PROJ) {
+            values=cB.qbuf;count=MAXT*QG;
+        } else if(tag==PH_DN_PROJ) { values=cB.z;count=MAXT*VD; }
+        else if(tag==PH_MTP_EH || tag==PH_MTP_RESID_O || tag==PH_MTP_FFN_DOWN) { values=cB.xm;count=MAXT*D; }
+        for(int i=threadIdx.x;values && i<count;i+=NT) {
+            if(!isfinite(__ldcg(values+i)) && atomicCAS(cB.numeric_error,0,1)==0)
+                printf("[mk-numeric] nonfinite n=%d phase=%d barrier=%u index=%d\n",cB.ctl->n,tag,epoch/gridDim.x,i);
+        }
+        __syncthreads();
+    }
+}
+
+// profiling: timestamp the end of a phase's activation fill (block 0)
+__device__ __forceinline__ void mark_fill() {
+    if (cB.prof && blockIdx.x == 0 && threadIdx.x == 0 && s_bar_k + 1 < 2048) cB.prof[2048 + s_bar_k + 1] = gtimer();
+}
+
+// block-wide sum, result broadcast. red must hold >= NW floats.
+__device__ __forceinline__ float bsum(float v, float * red) {
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    v = wsum(v);
+    __syncthreads();
+    if (lane == 0) red[warp] = v;
+    __syncthreads();
+    float r = lane < NW ? red[lane] : 0.f;
+    r = wsum(r);
+    return r;
+}
+
+// lane i holds element 32*j+i of row t; quantise the natural 32-block j into the unit layout.
+__device__ __forceinline__ void q32_store(const QBuf & q, int t, int j, float v, float ss, bool wss) {
+    const int lane = threadIdx.x & 31;
+    const float amax = wmax(fabsf(v));
+    const float d = amax / 127.0f;
+    const int qi = amax == 0.0f ? 0 : (int) roundf(v / d);
+    const int b = j >> 3, p = (j >> 1) & 3, part = j & 1, hh = lane >> 4, byte = lane & 15;
+    const int gi = t * q.U + 8 * b + 2 * p + hh;
+    (part ? q.xb : q.xa)[gi * 16 + byte] = (int8_t) qi;
+    int qs = qi;
+    qs += __shfl_xor_sync(0xffffffffu, qs, 8);
+    qs += __shfl_xor_sync(0xffffffffu, qs, 4);
+    qs += __shfl_xor_sync(0xffffffffu, qs, 2);
+    qs += __shfl_xor_sync(0xffffffffu, qs, 1);
+    if (byte == 0) {
+        reinterpret_cast<__half *>(q.meta + gi)[part] = __float2half_rn(d);
+        reinterpret_cast<short *>(q.meta + gi)[2 + part] = (short) qs;
+    }
+    if (wss) {
+        const float s = wsum(ss);
+        if (lane == 0) q.ssq[t * q.U + j] = s;
+    }
+}
+
+struct SX {
+    int4 * xa;
+    int4 * xb;
+    uint2 * xm; // per unit: half2 scales of the A / B 16-chunks, short2 int sums of the chunks
+    int U;
+};
+
+__device__ __forceinline__ SX make_sx(uint8_t * /*sm*/, int U) {
+    uint8_t * const sm = smem;
+    SX s;
+    s.xa = reinterpret_cast<int4 *>(sm + SM_XA);
+    s.xb = reinterpret_cast<int4 *>(sm + SM_XB);
+    s.xm = reinterpret_cast<uint2 *>(sm + SM_XM);
+    s.U = U;
+    return s;
+}
+
+__device__ __forceinline__ float * misc(uint8_t * /*sm*/) {
+    uint8_t * const sm = smem; return reinterpret_cast<float *>(sm + SM_MISC); }
+
+__device__ __forceinline__ void cp_async16(void * smem_dst, const void * gsrc) {
+    const unsigned d = (unsigned) __cvta_generic_to_shared(smem_dst);
+    asm volatile("cp.async.cg.shared.global [%0], [%1], 16;" ::"r"(d), "l"(gsrc) : "memory");
+}
+
+// Load T rows (starting at row t0) of a quantised activation buffer into shared memory with
+// async copies.  norm: s_rs[t] receives the RMS-norm scale of row t (from the producer's
+// per-block sums of squares); consumers apply it to their dot products, otherwise s_rs = 1.
+template <int T>
+__device__ void fill_xs(const QBuf & q, int t0, bool norm, const SX & s, float * s_rs) {
+    const int tid = threadIdx.x, lane = tid & 31, warp = tid >> 5;
+    const int U = q.U;
+    const int8_t * ga = q.xa + (size_t) t0 * U * 16;
+    const int8_t * gb = q.xb + (size_t) t0 * U * 16;
+    const uint2 * gm = q.meta + (size_t) t0 * U;
+    for (int i = tid; i < T * U; i += NT) {
+        cp_async16(s.xa + i, ga + (size_t) i * 16);
+        cp_async16(s.xb + i, gb + (size_t) i * 16);
+    }
+    for (int i = tid; i < T * U / 2; i += NT) cp_async16(s.xm + 2 * i, gm + 2 * i);
+    asm volatile("cp.async.commit_group;" ::: "memory");
+    if (norm) { // normed consumers always read the K = D residual stream (U_D = 160 partial sums)
+        if (warp < T) {
+            float p[U_D / 32];
+#pragma unroll
+            for (int k = 0; k < U_D / 32; k++) p[k] = __ldcg(q.ssq + (t0 + warp) * U_D + lane + 32 * k);
+            float acc = 0.f;
+#pragma unroll
+            for (int k = 0; k < U_D / 32; k++) acc += p[k];
+            acc = wsum(acc);
+            if (lane == 0) s_rs[warp] = rsqrtf(acc / (float) D + EPS);
+        }
+    } else if (tid < T) {
+        s_rs[tid] = 1.0f;
+    }
+    asm volatile("cp.async.wait_all;" ::: "memory");
+    __syncthreads();
+    mark_fill();
+}
+
+// Async copy of units [u0, u0 + US) of T activation rows (one K-slice) into shared memory.
+template <int T, int US>
+__device__ void fill_xs_part(const QBuf & q, int u0, const SX & s) {
+    const int tid = threadIdx.x, U = q.U;
+    __syncthreads(); // the previous slice may still be in use
+    for (int i = tid; i < T * US; i += NT) {
+        const int t = i / US, u = i - t * US;
+        const size_t gi = (size_t) t * U + u0 + u;
+        cp_async16(s.xa + i, q.xa + gi * 16);
+        cp_async16(s.xb + i, q.xb + gi * 16);
+    }
+    for (int i = tid; i < T * US / 2; i += NT) {
+        const int t = 2 * i / US, u = 2 * i - t * US;
+        cp_async16(s.xm + 2 * i, q.meta + (size_t) t * U + u0 + u);
+    }
+    asm volatile("cp.async.commit_group;\ncp.async.wait_all;" ::: "memory");
+    __syncthreads();
+}
+
+// ------------------------------------------------------------------------------------------
+// quantised GEMV: R rows per warp share every activation load (per-lane partial sums;
+// the caller reduces across the warp).  Lane handles units u = lane + 32 i.
+// ------------------------------------------------------------------------------------------
+
+constexpr int M4 = 0x0F0F0F0F;
+
+__device__ __forceinline__ int gwarp() { return (threadIdx.x >> 5) * gridDim.x + blockIdx.x; }
+__device__ __forceinline__ int nwarps() { return NW * gridDim.x; }
+
+template <int T, int R>
+__device__ __forceinline__ void zero_acc(float (&a)[R][T]) {
+#pragma unroll
+    for (int k = 0; k < R; k++)
+#pragma unroll
+        for (int t = 0; t < T; t++) a[k][t] = 0.f;
+}
+
+template <int T, int R>
+__device__ __forceinline__ void wsum_acc(float (&a)[R][T]) {
+#pragma unroll
+    for (int k = 0; k < R; k++)
+#pragma unroll
+        for (int t = 0; t < T; t++) a[k][t] = wsum(a[k][t]);
+}
+
+template <int T, int R, int UU>
+__device__ __forceinline__ void accR(const SX & s, int u, const int (&A)[R][4], const int (&B)[R][4],
+                                     const float (&fA)[R], const float (&gA)[R], const float (&fB)[R],
+                                     const float (&gB)[R], float (&acc)[R][T]) {
+#pragma unroll
+    for (int t = 0; t < T; t++) {
+        const int ix = t * UU + u;
+        const int4 va = s.xa[ix], vb = s.xb[ix];
+        const uint2 mm = s.xm[ix];
+        const float2 dx = __half22float2(*reinterpret_cast<const __half2 *>(&mm.x));
+        const int qq = (int) mm.y;
+        const float sqA = dx.x * (float) (short) (qq & 0xffff), sqB = dx.y * (float) (short) (qq >> 16);
+#pragma unroll
+        for (int k = 0; k < R; k++) {
+            int sa = __dp4a(A[k][0], va.x, 0);
+            sa = __dp4a(A[k][1], va.y, sa);
+            sa = __dp4a(A[k][2], va.z, sa);
+            sa = __dp4a(A[k][3], va.w, sa);
+            int sb = __dp4a(B[k][0], vb.x, 0);
+            sb = __dp4a(B[k][1], vb.y, sb);
+            sb = __dp4a(B[k][2], vb.z, sb);
+            sb = __dp4a(B[k][3], vb.w, sb);
+            acc[k][t] += fA[k] * (dx.x * (float) sa) + fB[k] * (dx.y * (float) sb) - gA[k] * sqA - gB[k] * sqB;
+        }
+    }
+}
+
+__device__ __forceinline__ void q4k_scales(const int4 & h, int p, float & fA, float & gA, float & fB, float & gB) {
+    const float2 dm = __half22float2(*reinterpret_cast<const __half2 *>(&h.x));
+    const int sh = (p & 1) * 16;
+    const unsigned y = (unsigned) h.y >> sh, z = (unsigned) h.z >> sh, w = (unsigned) h.w >> sh;
+    unsigned sc0, sc1, m0, m1;
+    if (p < 2) {
+        sc0 = y & 63;
+        sc1 = (y >> 8) & 63;
+        m0 = z & 63;
+        m1 = (z >> 8) & 63;
+    } else {
+        sc0 = (w & 0xF) | ((y >> 2) & 0x30);
+        sc1 = ((w >> 8) & 0xF) | ((y >> 10) & 0x30);
+        m0 = ((w >> 4) & 0xF) | ((z >> 2) & 0x30);
+        m1 = ((w >> 12) & 0xF) | ((z >> 10) & 0x30);
+    }
+    fA = dm.x * (float) sc0;
+    fB = dm.x * (float) sc1;
+    gA = dm.y * (float) m0;
+    gB = dm.y * (float) m1;
+}
+
+template <int T, int IT, int R>
+__device__ __forceinline__ void rows_q4k(const uint8_t * const (&rp)[R], const SX & s, float (&acc)[R][T]) {
+    const int lane = threadIdx.x & 31;
+#pragma unroll(IT > 8 ? (T >= 5 ? 1 : 4) : IT)
+    for (int i = 0; i < IT; i++) {
+        const int u = lane + 32 * i, b = u >> 3, p = (u >> 1) & 3, hh = u & 1;
+        int4 h[R], q[R];
+#pragma unroll
+        for (int k = 0; k < R; k++) {
+            const uint8_t * blk = rp[k] + b * 144;
+            h[k] = ldw4(blk);
+            q[k] = ldw4(blk + 16 + 32 * p + 16 * hh);
+        }
+        int A[R][4], B[R][4];
+        float fA[R], gA[R], fB[R], gB[R];
+#pragma unroll
+        for (int k = 0; k < R; k++) {
+            q4k_scales(h[k], p, fA[k], gA[k], fB[k], gB[k]);
+            A[k][0] = q[k].x & M4; A[k][1] = q[k].y & M4; A[k][2] = q[k].z & M4; A[k][3] = q[k].w & M4;
+            B[k][0] = (q[k].x >> 4) & M4; B[k][1] = (q[k].y >> 4) & M4;
+            B[k][2] = (q[k].z >> 4) & M4; B[k][3] = (q[k].w >> 4) & M4;
+        }
+        accR<T, R, 32 * IT>(s, u, A, B, fA, gA, fB, gB, acc);
+    }
+}
+
+template <int T, int IT, int R>
+__device__ __forceinline__ void rows_q5k(const uint8_t * const (&rp)[R], const SX & s, float (&acc)[R][T]) {
+    const int lane = threadIdx.x & 31;
+#pragma unroll(IT > 8 ? (T >= 5 ? 1 : 4) : IT)
+    for (int i = 0; i < IT; i++) {
+        const int u = lane + 32 * i, b = u >> 3, p = (u >> 1) & 3, hh = u & 1;
+        int4 h[R], qh[R], q[R];
+#pragma unroll
+        for (int k = 0; k < R; k++) {
+            const uint8_t * blk = rp[k] + b * 176;
+            h[k] = ldw4(blk);
+            qh[k] = ldw4(blk + 16 + 16 * hh);
+            q[k] = ldw4(blk + 48 + 32 * p + 16 * hh);
+        }
+        int A[R][4], B[R][4];
+        float fA[R], gA[R], fB[R], gB[R];
+        const int s0 = 2 * p, s1 = 2 * p + 1;
+#pragma unroll
+        for (int k = 0; k < R; k++) {
+            q4k_scales(h[k], p, fA[k], gA[k], fB[k], gB[k]);
+            A[k][0] = (q[k].x & M4) | (((qh[k].x >> s0) & 0x01010101) << 4);
+            A[k][1] = (q[k].y & M4) | (((qh[k].y >> s0) & 0x01010101) << 4);
+            A[k][2] = (q[k].z & M4) | (((qh[k].z >> s0) & 0x01010101) << 4);
+            A[k][3] = (q[k].w & M4) | (((qh[k].w >> s0) & 0x01010101) << 4);
+            B[k][0] = ((q[k].x >> 4) & M4) | (((qh[k].x >> s1) & 0x01010101) << 4);
+            B[k][1] = ((q[k].y >> 4) & M4) | (((qh[k].y >> s1) & 0x01010101) << 4);
+            B[k][2] = ((q[k].z >> 4) & M4) | (((qh[k].z >> s1) & 0x01010101) << 4);
+            B[k][3] = ((q[k].w >> 4) & M4) | (((qh[k].w >> s1) & 0x01010101) << 4);
+        }
+        accR<T, R, 32 * IT>(s, u, A, B, fA, gA, fB, gB, acc);
+    }
+}
+
+// repacked Q6_K block (224 B): qlo[128] (q4k-style nibbles) | qhi[64] (8 B per unit) |
+// meta[32]: for each 64-group p: sc[4p..4p+3], d (fp16), 2 pad bytes  -> one 8-byte load per unit
+constexpr int Q6_BLK = 224;
+template <int T, int IT, int R>
+__device__ __forceinline__ void rows_q6k(const uint8_t * const (&rp)[R], const SX & s, float (&acc)[R][T]) {
+    const int lane = threadIdx.x & 31;
+#pragma unroll(IT > 8 ? (T >= 5 ? 1 : 4) : IT)
+    for (int i = 0; i < IT; i++) {
+        const int u = lane + 32 * i, b = u >> 3, p = (u >> 1) & 3, hh = u & 1;
+        int4 q[R];
+        int2 hb[R], meta[R];
+#pragma unroll
+        for (int k = 0; k < R; k++) {
+            const uint8_t * blk = rp[k] + b * Q6_BLK;
+            q[k] = ldw4(blk + 32 * p + 16 * hh);
+            hb[k] = ldw2(blk + 128 + 8 * (u & 7));
+            meta[k] = ldw2(blk + 192 + 8 * p);
+        }
+        int A[R][4], B[R][4];
+        float fA[R], gA[R], fB[R], gB[R];
+#pragma unroll
+        for (int k = 0; k < R; k++) {
+            const float d = __half2float(__ushort_as_half((unsigned short) (meta[k].y & 0xffff)));
+            fA[k] = d * (float) (int8_t) (meta[k].x >> (8 * hh));
+            fB[k] = d * (float) (int8_t) (meta[k].x >> (16 + 8 * hh));
+            gA[k] = 32.0f * fA[k];
+            gB[k] = 32.0f * fB[k];
+            const unsigned hx = (unsigned) hb[k].x, hy = (unsigned) hb[k].y;
+            A[k][0] = (q[k].x & M4) | (int) (((hx >> 0) & 0x03030303u) << 4);
+            A[k][1] = (q[k].y & M4) | (int) (((hx >> 2) & 0x03030303u) << 4);
+            A[k][2] = (q[k].z & M4) | (int) (((hx >> 4) & 0x03030303u) << 4);
+            A[k][3] = (q[k].w & M4) | (int) (((hx >> 6) & 0x03030303u) << 4);
+            B[k][0] = ((q[k].x >> 4) & M4) | (int) (((hy >> 0) & 0x03030303u) << 4);
+            B[k][1] = ((q[k].y >> 4) & M4) | (int) (((hy >> 2) & 0x03030303u) << 4);
+            B[k][2] = ((q[k].z >> 4) & M4) | (int) (((hy >> 4) & 0x03030303u) << 4);
+            B[k][3] = ((q[k].w >> 4) & M4) | (int) (((hy >> 6) & 0x03030303u) << 4);
+        }
+        accR<T, R, 32 * IT>(s, u, A, B, fA, gA, fB, gB, acc);
+    }
+}
+
+// repacked Q8_0: per unit 32 B (A 16 int8 | B 16 int8), scales per natural 32-block
+template <int T, int IT, int R>
+__device__ __forceinline__ void rows_q80(const uint8_t * const (&rp)[R], const __half * const (&dp)[R], const SX & s,
+                                         float (&acc)[R][T]) {
+    const int lane = threadIdx.x & 31;
+#pragma unroll(IT > 8 ? (T >= 5 ? 1 : 4) : IT)
+    for (int i = 0; i < IT; i++) {
+        const int u = lane + 32 * i;
+        int A[R][4], B[R][4];
+        float fA[R], gA[R], fB[R], gB[R];
+#pragma unroll
+        for (int k = 0; k < R; k++) {
+            const int4 a = ldw4(rp[k] + 32 * u), bq = ldw4(rp[k] + 32 * u + 16);
+            const int dd = ldw1(dp[k] + 2 * (u >> 1));
+            const float2 df = __half22float2(*reinterpret_cast<const __half2 *>(&dd));
+            A[k][0] = a.x; A[k][1] = a.y; A[k][2] = a.z; A[k][3] = a.w;
+            B[k][0] = bq.x; B[k][1] = bq.y; B[k][2] = bq.z; B[k][3] = bq.w;
+            fA[k] = df.x; fB[k] = df.y; gA[k] = 0.f; gB[k] = 0.f;
+        }
+        accR<T, R, 32 * IT>(s, u, A, B, fA, gA, fB, gB, acc);
+    }
+}
+
+// Native IQ grids are decoded once per eight weights and reused for every token.
+template <int T, int IT, int R, int TYPE = T_ANY>
+__device__ __forceinline__ void rows_native_impl(const Mat & m, int row0, const SX & s, float (&acc)[R][T], int u0) {
+    const int lane = threadIdx.x & 31;
+    // A reference parameter aliases the caller's stack. Keep the accumulation
+    // inside this function in registers and only copy back after the K loop.
+    float sum[R][T];
+    #pragma unroll
+    for (int r=0;r<R;r++) {
+        #pragma unroll
+        for (int t=0;t<T;t++) sum[r][t]=acc[r][t];
+    }
+    if constexpr (T > 5 && R == 2 && (TYPE == 16 || TYPE == 17 || TYPE == 18 || TYPE == 21 || TYPE == 22 || TYPE == 23)) {
+        if (cB.iq_paired) {
+            iq_dp4a_dual<T, 32 * IT, TYPE, TYPE, true, false>(
+                m.w + size_t(row0) * m.rb, m.w + size_t(row0 + 1) * m.rb,
+                s.xa, s.xb, s.xm, sum[0], sum[1], u0 * 32);
+            #pragma unroll
+            for (int r=0;r<R;r++) {
+                #pragma unroll
+                for (int t=0;t<T;t++) acc[r][t]=sum[r][t];
+            }
+            return;
+        }
+    }
+    #pragma unroll 1
+    for (int i = 0; i < IT; i++) {
+        const int u = lane + 32 * i;
+        const int e0 = u0 * 32 + 256 * (u / 8) + 64 * ((u / 2) & 3) + 16 * (u & 1);
+        if constexpr (TYPE == 18 || TYPE == 21 || TYPE == 23) {
+            #pragma unroll
+            for (int p = 0; p < 2; p++) {
+                #pragma unroll
+                for (int r = 0; r < R; r++) {
+                    const Quant16 w = quant16<TYPE>(m.w + size_t(row0+r)*m.rb, e0+32*p);
+                    #pragma unroll
+                    for (int t = 0; t < T; t++) {
+                        const int ix = t*(32*IT)+u;
+                        const int4 x = p ? s.xb[ix] : s.xa[ix];
+                        const float2 dx = __half22float2(*reinterpret_cast<const __half2 *>(&s.xm[ix].x));
+                        const float d = p ? dx.y : dx.x;
+                        const int dot = __dp4a(w.q.w,x.w,__dp4a(w.q.z,x.z,__dp4a(w.q.y,x.y,__dp4a(w.q.x,x.x,0))));
+                        sum[r][t] += d*w.d*dot;
+                    }
+                }
+            }
+        } else {
+        #pragma unroll 1
+        for (int f = 0; f < 4; f++) {
+            #pragma unroll
+            for (int r = 0; r < R; r++) {
+                const Quant8 w = quant8(TYPE == T_ANY ? m.type : TYPE, m.w + size_t(row0 + r) * m.rb,
+                                        e0 + (f / 2) * 32 + (f & 1) * 8,
+                                        m.d ? m.d + size_t(row0 + r)*m.nd : nullptr);
+                #pragma unroll
+                for (int t = 0; t < T; t++) {
+                    const int ix = t * (32 * IT) + u;
+                    const int4 x = f < 2 ? s.xa[ix] : s.xb[ix];
+                    const int a = (f & 1) ? x.z : x.x, b = (f & 1) ? x.w : x.y;
+                    const float2 dx = __half22float2(*reinterpret_cast<const __half2 *>(&s.xm[ix].x));
+                    const float d = f < 2 ? dx.x : dx.y;
+                    const int xs = __dp4a(a, 0x01010101, __dp4a(b, 0x01010101, 0));
+                    sum[r][t] += d * (w.d * __dp4a(w.q.x, a, __dp4a(w.q.y, b, 0)) + w.offset * xs);
+                }
+            }
+        }
+        }
+    }
+    #pragma unroll
+    for (int r=0;r<R;r++) {
+        #pragma unroll
+        for (int t=0;t<T;t++) acc[r][t]=sum[r][t];
+    }
+}
+
+template <int T, int IT, int R, int TYPE = T_ANY>
+__device__ __noinline__ void rows_native(const Mat & m, int row0, const SX & s, float (&acc)[R][T], int u0) {
+    rows_native_impl<T, IT, R, TYPE>(m, row0, s, acc, u0);
+}
+
+template <int T, int IT, int R, int TYPE>
+__device__ __forceinline__ void native_rows(const Mat & m, int row0, const SX & s, float (&acc)[R][T], int u0) {
+    if constexpr (T > 5 && R == 2 && TYPE != T_ANY) {
+        if (cB.iq_inline) {
+            rows_native_impl<T, IT, R, TYPE>(m, row0, s, acc, u0);
+            return;
+        }
+    }
+    rows_native<T, IT, R, TYPE>(m, row0, s, acc, u0);
+}
+
+// rows row0 .. row0+R-1 of m, weight type fixed at compile time
+// u0: first unit of a K-slice (multiple of 32) when the activations in s hold only that slice
+template <int TYPE>
+__device__ __forceinline__ int unit_bytes(int u0) {
+    return TYPE == T_Q4K ? (u0 >> 3) * 144 : TYPE == T_Q5K ? (u0 >> 3) * 176 : TYPE == T_Q6K ? (u0 >> 3) * Q6_BLK : 32 * u0;
+}
+template <int T, int IT, int R, int TYPE>
+__device__ __forceinline__ void mrows(const Mat & m, int row0, const SX & s, float (&acc)[R][T], int u0 = 0) {
+    if constexpr (TYPE == T_ANY) {
+        switch (m.type) {
+            case T_Q4K: mrows<T, IT, R, T_Q4K>(m, row0, s, acc, u0); break;
+            case T_Q6K: mrows<T, IT, R, T_Q6K>(m, row0, s, acc, u0); break;
+            case 16:
+                if constexpr (T > 5) native_rows<T, IT, R, 16>(m, row0, s, acc, u0);
+                else rows_native<T, IT, R>(m, row0, s, acc, u0);
+                break;
+            case 17:
+                if constexpr (T > 5) native_rows<T, IT, R, 17>(m, row0, s, acc, u0);
+                else rows_native<T, IT, R>(m, row0, s, acc, u0);
+                break;
+            case 22:
+                if constexpr (T > 5) native_rows<T, IT, R, 22>(m, row0, s, acc, u0);
+                else rows_native<T, IT, R>(m, row0, s, acc, u0);
+                break;
+            case 18: native_rows<T, IT, R, 18>(m, row0, s, acc, u0); break;
+            case 21: native_rows<T, IT, R, 21>(m, row0, s, acc, u0); break;
+            case 23: native_rows<T, IT, R, 23>(m, row0, s, acc, u0); break;
+            default: rows_native<T, IT, R>(m, row0, s, acc, u0); break;
+        }
+        return;
+    }
+    const uint8_t * rp[R];
+    const __half * dp[R];
+#pragma unroll
+    for (int k = 0; k < R; k++) {
+        rp[k] = m.w + (size_t) (row0 + k) * m.rb + unit_bytes<TYPE>(u0);
+        dp[k] = m.d + (size_t) (row0 + k) * m.nd + u0;
+    }
+    if constexpr (TYPE == T_Q4K) rows_q4k<T, IT, R>(rp, s, acc);
+    else if constexpr (TYPE == T_Q5K) rows_q5k<T, IT, R>(rp, s, acc);
+    else if constexpr (TYPE == T_Q6K) rows_q6k<T, IT, R>(rp, s, acc);
+    else rows_q80<T, IT, R>(rp, dp, s, acc);
+}
+
+// Row pairs [lo, hi) of a single-matrix item range, distributed over all warps of the grid.
+// out(row0, acc) receives the reduced sums for rows row0, row0 + 1.
+template <int T, int IT, int TYPE, class Out>
+__device__ __noinline__ void gemv_pairs(const Mat m, int lo, int hi, Out out) {
+    const SX sx = make_sx(nullptr, 32 * IT); // activations already in shared memory
+    const int W = nwarps(), gw = gwarp();
+    const int first = lo + (((gw - lo) % W) + W) % W;
+    for (int it = first; it < hi; it += W) {
+        const int r = 2 * (it - lo);
+        float a[2][T];
+        zero_acc<T, 2>(a);
+        mrows<T, IT, 2, TYPE>(m, r, sx, a);
+        wsum_acc<T, 2>(a);
+        out(r, a);
+    }
+}
+
+// Q4_K or Q6_K matrix (the two types that occur for qkv / v projections)
+template <int T, int IT, class Out>
+__device__ __forceinline__ void gemv_pairs_46(const Mat & m, int lo, int hi, Out out) {
+    gemv_pairs<T, IT, T_ANY>(m, lo, hi, out);
+}
+
+
+// Prefetch the first `bytes` of rows row0..row0+n-1 into L2 so the DRAM stream of a phase starts
+// while its activations are still being loaded into shared memory.
+__device__ __forceinline__ void pf_rows(const Mat & m, int row0, int n, int bytes) {
+    const int lane = threadIdx.x & 31;
+    for (int k = 0; k < n; k++) {
+        const uint8_t * p = m.w + (size_t) (row0 + k) * m.rb;
+        for (int off = lane * 128; off < bytes; off += 32 * 128) asm volatile("prefetch.global.L2 [%0];" ::"l"(p + off));
+    }
+}
+
+// lanes 0-15 quantise 16-chunk c of row t, lanes 16-31 the same chunk of row t + 1 (if valid)
+__device__ __forceinline__ void q16_store(const QBuf & q, int t, int c, float v, bool valid) {
+    const int lane = threadIdx.x & 31;
+    float amax = fabsf(v);
+    amax = fmaxf(amax, __shfl_xor_sync(0xffffffffu, amax, 8));
+    amax = fmaxf(amax, __shfl_xor_sync(0xffffffffu, amax, 4));
+    amax = fmaxf(amax, __shfl_xor_sync(0xffffffffu, amax, 2));
+    amax = fmaxf(amax, __shfl_xor_sync(0xffffffffu, amax, 1));
+    const float d = amax / 127.0f;
+    const int qi = amax == 0.0f ? 0 : (int) roundf(v / d);
+    int qs = qi;
+    qs += __shfl_xor_sync(0xffffffffu, qs, 8);
+    qs += __shfl_xor_sync(0xffffffffu, qs, 4);
+    qs += __shfl_xor_sync(0xffffffffu, qs, 2);
+    qs += __shfl_xor_sync(0xffffffffu, qs, 1);
+    if (!valid) return;
+    const int b = c >> 4, p = (c >> 2) & 3, part = (c >> 1) & 1, hh = c & 1, byte = lane & 15;
+    const int gi = t * q.U + 8 * b + 2 * p + hh;
+    (part ? q.xb : q.xa)[gi * 16 + byte] = (int8_t) qi;
+    if (byte == 0) {
+        reinterpret_cast<__half *>(q.meta + gi)[part] = __float2half_rn(d);
+        reinterpret_cast<short *>(q.meta + gi)[2 + part] = (short) qs;
+    }
+}
+
+template <int T>
+__device__ __forceinline__ void wsum_all(float (&a)[T]) {
+#pragma unroll
+    for (int t = 0; t < T; t++) a[t] = wsum(a[t]);
+}
+
+// ------------------------------------------------------------------------------------------
+// phases
+// ------------------------------------------------------------------------------------------
+
+__device__ __forceinline__ float dequant_q4k(const uint8_t * row, int e) {
+    const int b = e >> 8, w = e & 255, sb = w >> 5, l = w & 31;
+    const uint8_t * blk = row + b * 144;
+    const float d = __half2float(*reinterpret_cast<const __half *>(blk));
+    const float dmin = __half2float(*reinterpret_cast<const __half *>(blk + 2));
+    const uint8_t * sc = blk + 4;
+    int s, m;
+    if (sb < 4) {
+        s = sc[sb] & 63;
+        m = sc[sb + 4] & 63;
+    } else {
+        s = (sc[sb + 4] & 0xF) | ((sc[sb - 4] >> 6) << 4);
+        m = (sc[sb + 4] >> 4) | ((sc[sb] >> 6) << 4);
+    }
+    const uint8_t qb = blk[16 + 32 * (sb >> 1) + l];
+    const int qv = (sb & 1) ? (qb >> 4) : (qb & 0xF);
+    return d * (float) s * (float) qv - dmin * (float) m;
+}
+
+// token embedding rows -> x, plus quantised attn_norm input for layer 0
+template <int T>
+__device__ __noinline__ void embed_prologue() {
+    const int t = blockIdx.x;
+    if (t >= T) return;
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    const int tok = ((volatile Ctl *) cB.ctl)->tok[t];
+    const uint8_t * row = cW.embd + (size_t) tok * cW.embedding.rb;
+    const float * w0 = cW.L[0].attn_norm;
+    for (int j = warp; j < U_D; j += NW) {
+        const int e = 32 * j + lane;
+        const float v = native_value(cW.embedding.type, row, e, cW.embedding.d ? cW.embedding.d + size_t(tok) * cW.embedding.nd : nullptr);
+        cB.x[t * D + e] = v;
+        q32_store(cB.qn, t, j, v * w0[e], v * v, true);
+    }
+}
+
+// Output rows (32 consecutive rows per block item) with optional residual add; the new
+// residual value is re-quantised for the next RMS-normed consumer (weight wnext).
+template <int T, int IT, int TYPE>
+__device__ __noinline__ void resid32(const Mat W, const QBuf in, float * x, bool add, const float * wnext, uint8_t * /*sm*/) {
+    uint8_t * const sm = smem;
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    float * s_rs = misc(sm);
+    float * s_res = misc(sm) + 8;
+    if (blockIdx.x < D / 32) pf_rows(W, 32 * blockIdx.x + 2 * warp, 2, W.rb / IT);
+    if (threadIdx.x < 4 && blockIdx.x + threadIdx.x * gridDim.x < D / 32) pf_l2(wnext + 32 * (blockIdx.x + threadIdx.x * gridDim.x));
+    auto epilogue = [&](int j, float (&a)[2][T]) {
+        wsum_acc<T, 2>(a);
+        if (lane == 0) {
+#pragma unroll
+            for (int t = 0; t < T; t++) {
+                s_res[t * 32 + 2 * warp] = a[0][t];
+                s_res[t * 32 + 2 * warp + 1] = a[1][t];
+            }
+        }
+        __syncthreads();
+        if (warp < T) {
+            const int t = warp, row = 32 * j + lane;
+            float xv = s_res[t * 32 + lane];
+            if (add) xv += __ldcg(x + t * D + row);
+            const unsigned bad = __ballot_sync(0xffffffffu, !isfinite(xv));
+            if (bad) {
+                if (lane == __ffs(bad)-1) printf("[mk] nonfinite residual T=%d IT=%d type=%d row=%d n=%d\n", T, IT, W.type, row, cB.ctl->n);
+                asm volatile("trap;");
+            }
+            x[t * D + row] = xv;
+            q32_store(cB.qn, t, j, xv * wnext[row], xv * xv, true);
+        }
+        __syncthreads();
+    };
+    if constexpr (T > 5 && IT == 17) {
+        if (cB.ffn_down_global) {
+            SX sx;
+            sx.xa = reinterpret_cast<int4 *>(in.xa);
+            sx.xb = reinterpret_cast<int4 *>(in.xb);
+            sx.xm = in.meta;
+            sx.U = in.U;
+            for (int j = blockIdx.x; j < D / 32; j += gridDim.x) {
+                float a[2][T];
+                zero_acc<T, 2>(a);
+                mrows<T, IT, 2, TYPE>(W, 32 * j + 2 * warp, sx, a);
+                epilogue(j, a);
+            }
+            return;
+        }
+    }
+    if constexpr (T * 32 * IT > SM_XU) {
+        // Five-token FFN down projections exceed the full activation staging
+        // region. Process each output group across two K slices, keeping its
+        // partial sums in registers instead of parking a second group in SM.
+        constexpr int U0 = T <= 5 ? 32 * ((IT + 1) / 2) : 32 * (SM_XU / (32*T));
+        constexpr int FULL = (32*IT)/U0, U1 = (32*IT)%U0;
+        static_assert(T * U0 * 40 <= SM_MISC, "split FFN shared memory");
+        auto sxh = [&](int US) {
+            SX r;
+            r.xa = reinterpret_cast<int4 *>(sm);
+            r.xb = reinterpret_cast<int4 *>(sm + T * US * 16);
+            r.xm = reinterpret_cast<uint2 *>(sm + 2 * T * US * 16);
+            r.U = US;
+            return r;
+        };
+        const SX s0 = sxh(U0), s1 = sxh(U1);
+        for (int j = blockIdx.x; j < D / 32; j += gridDim.x) {
+            float a[2][T];
+            zero_acc<T, 2>(a);
+            for (int k=0;k<FULL;k++) {
+                fill_xs_part<T, U0>(in, k*U0, s0);
+                mrows<T, U0 / 32, 2, TYPE>(W, 32*j+2*warp, s0, a, k*U0);
+            }
+            if constexpr (U1>0) {
+                fill_xs_part<T, U1>(in, FULL*U0, s1);
+                mrows<T, U1 / 32, 2, TYPE>(W, 32*j+2*warp, s1, a, FULL*U0);
+            }
+            epilogue(j, a);
+        }
+    } else {
+        const SX sx = make_sx(sm, in.U);
+        fill_xs<T>(in, 0, false, sx, s_rs);
+        for (int j = blockIdx.x; j < D / 32; j += gridDim.x) {
+            float a[2][T];
+            zero_acc<T, 2>(a);
+            mrows<T, IT, 2, TYPE>(W, 32 * j + 2 * warp, sx, a);
+            epilogue(j, a);
+        }
+    }
+}
+
+// At large T, keep both IQ dots in registers and reuse each activation fragment.
+// The per-dot accumulation order matches rows_native<...,1,TYPE>.
+template <int T, int GT, int UT>
+__device__ __noinline__ void ffn_gu_iq(const LayerW & W) {
+    const int lane = threadIdx.x & 31;
+    const SX sx = make_sx(nullptr, U_D);
+    const float * s_rs = misc(nullptr);
+    for (int j = gwarp(); j < FF / 16; j += nwarps()) {
+        float act[T];
+#pragma unroll
+        for (int t = 0; t < T; t++) act[t] = 0.f;
+#pragma unroll 1
+        for (int r = 0; r < 16; r++) {
+            const int row = 16 * j + r;
+            const uint8_t * gate_row = W.fg.w + size_t(row) * W.fg.rb;
+            const uint8_t * up_row = W.fu.w + size_t(row) * W.fu.rb;
+            float gate[T], up[T];
+            if constexpr (GT == 16 || GT == 17 || GT == 22 || UT == 16 || UT == 17 || UT == 22) {
+                if (cB.iq_paired) iq_dp4a_dual<T, U_D, GT, UT, true>(gate_row, up_row, sx.xa, sx.xb, sx.xm, gate, up);
+                else iq_dp4a_dual<T, U_D, GT, UT>(gate_row, up_row, sx.xa, sx.xb, sx.xm, gate, up);
+            } else iq_dp4a_dual<T, U_D, GT, UT>(gate_row, up_row, sx.xa, sx.xb, sx.xm, gate, up);
+            wsum_all<T>(gate);
+            wsum_all<T>(up);
+            if (lane == r) {
+#pragma unroll
+                for (int t = 0; t < T; t++) {
+                    act[t] = silu(gate[t] * s_rs[t]) * (up[t] * s_rs[t]);
+#ifdef MK_PHASE_ONLY
+                    if(cB.gu_probe){float * p=cB.gu_probe+(size_t(t)*FF+row)*5;p[0]=gate[t];p[1]=up[t];p[2]=gate[t]*s_rs[t];p[3]=up[t]*s_rs[t];p[4]=act[t];}
+#endif
+                }
+            }
+        }
+#pragma unroll
+        for (int t = 0; t < T; t += 2) {
+            const float other = __shfl_sync(0xffffffffu, act[t + 1 < T ? t + 1 : t], lane & 15);
+            q16_store(cB.qa, lane < 16 ? t : t + 1, j, lane < 16 ? act[t] : other, lane < 16 || t + 1 < T);
+        }
+    }
+}
+
+template<int T, int GT>
+__device__ __forceinline__ bool ffn_gu_iq_up(const LayerW & W) {
+    switch (W.fu.type) {
+        case 16: ffn_gu_iq<T, GT, 16>(W); return true;
+        case 17: ffn_gu_iq<T, GT, 17>(W); return true;
+        case 18: ffn_gu_iq<T, GT, 18>(W); return true;
+        case 21: ffn_gu_iq<T, GT, 21>(W); return true;
+        case 22: ffn_gu_iq<T, GT, 22>(W); return true;
+        case 23: ffn_gu_iq<T, GT, 23>(W); return true;
+        default: return false;
+    }
+}
+
+__device__ __noinline__ void ffn_gu_mma(const LayerW & W) {
+    const int lane = threadIdx.x & 31, word = lane & 3;
+    const SX sx = make_sx(nullptr, U_D);
+    const float * s_rs = misc(nullptr);
+    for (int j = gwarp(); j < FF / 16; j += nwarps()) {
+        float values[2][2];
+#pragma unroll
+        for (int half = 0; half < 2; half++) {
+            const int row = 16 * j + 8 * half;
+            float gate[2], up[2];
+            iq_mma_dual(W.fg.w + size_t(row) * W.fg.rb, W.fg.rb, W.fg.type,
+                        W.fu.w + size_t(row) * W.fu.rb, W.fu.rb, W.fu.type,
+                        sx.xa, sx.xb, sx.xm, U_D, gate, up);
+#pragma unroll
+            for (int t = 0; t < 2; t++) {
+                const float scale = s_rs[2 * word + t];
+                values[half][t] = silu(gate[t] * scale) * (up[t] * scale);
+            }
+        }
+#pragma unroll
+        for (int t = 0; t < 8; t += 2) {
+            const int source = 4 * (lane & 7) + t / 2;
+            const float a = __shfl_sync(0xffffffffu, values[0][0], source);
+            const float b = __shfl_sync(0xffffffffu, values[0][1], source);
+            const float c = __shfl_sync(0xffffffffu, values[1][0], source);
+            const float d = __shfl_sync(0xffffffffu, values[1][1], source);
+            const float v = (lane & 8) ? (lane < 16 ? c : d) : (lane < 16 ? a : b);
+            q16_store(cB.qa, t + (lane >> 4), j, v, true);
+        }
+    }
+}
+
+// FFN gate/up: warp item = 16 consecutive rows of both matrices (4 rows in flight sharing the
+// activations) -> silu(g)*u quantised per 16-chunk for the down projection.
+template <int T>
+__device__ __noinline__ void ffn_gu(const LayerW & W, uint8_t * /*sm*/) {
+    uint8_t * const sm = smem;
+    const int lane = threadIdx.x & 31;
+    const SX sx = make_sx(sm, U_D);
+    const float * s_rs = misc(sm);
+    if (gwarp() < FF / 16) {
+        pf_rows(W.fg, 16 * gwarp(), 2, 576);
+        pf_rows(W.fu, 16 * gwarp(), 2, 576);
+    }
+    fill_xs<T>(cB.qn, 0, true, sx, misc(sm));
+    if constexpr (T == 8) {
+        if (cB.ffn_iq_mma && iq_mma_supported(W.fg.type) && iq_mma_supported(W.fu.type)) {
+            ffn_gu_mma(W);
+            return;
+        }
+    }
+    if constexpr (T > 5 || T == 4) {
+        if (cB.ffn_iq_fused && (T > 5 || cB.ffn_iq_small)) {
+            switch (W.fg.type) {
+                case 16: if (ffn_gu_iq_up<T, 16>(W)) return; break;
+                case 17: if (ffn_gu_iq_up<T, 17>(W)) return; break;
+                case 18: if (ffn_gu_iq_up<T, 18>(W)) return; break;
+                case 21: if (ffn_gu_iq_up<T, 21>(W)) return; break;
+                case 22: if (ffn_gu_iq_up<T, 22>(W)) return; break;
+                case 23: if (ffn_gu_iq_up<T, 23>(W)) return; break;
+            }
+        }
+    }
+    for (int j = gwarp(); j < FF / 16; j += nwarps()) {
+        float act[T];
+#pragma unroll
+        for (int t = 0; t < T; t++) act[t] = 0.f;
+        constexpr int RG = T >= 3 ? 1 : 2; // rows per matrix per step (fewer at large T: register budget)
+#pragma unroll 1
+        for (int r = 0; r < 16; r += RG) {
+            const int row = 16 * j + r;
+            float ag[RG][T], au[RG][T], a[2 * RG][T];
+            zero_acc<T, RG>(ag);
+            zero_acc<T, RG>(au);
+            mrows<T, 5, RG, T_ANY>(W.fg, row, sx, ag);
+            mrows<T, 5, RG, T_ANY>(W.fu, row, sx, au);
+            #pragma unroll
+            for (int k = 0; k < RG; k++)
+                #pragma unroll
+                for (int t = 0; t < T; t++) { a[k][t] = ag[k][t]; a[RG + k][t] = au[k][t]; }
+            wsum_acc<T, 2 * RG>(a);
+#pragma unroll
+            for (int k = 0; k < RG; k++)
+                if (lane == r + k) {
+#pragma unroll
+                    for (int t = 0; t < T; t++) {
+                        act[t] = silu(a[k][t] * s_rs[t]) * (a[RG + k][t] * s_rs[t]);
+#ifdef MK_PHASE_ONLY
+                        if(cB.gu_probe){float * p=cB.gu_probe+(size_t(t)*FF+row+k)*5;p[0]=a[k][t];p[1]=a[RG+k][t];p[2]=a[k][t]*s_rs[t];p[3]=a[RG+k][t]*s_rs[t];p[4]=act[t];}
+#endif
+                    }
+                }
+        }
+#pragma unroll
+        for (int t = 0; t < T; t += 2) {
+            const float other = __shfl_sync(0xffffffffu, act[t + 1 < T ? t + 1 : t], lane & 15);
+            const float v = lane < 16 ? act[t] : other;
+            q16_store(cB.qa, lane < 16 ? t : t + 1, j, v, lane < 16 || t + 1 < T);
+        }
+    }
+}
+
+template <int T>
+__device__ __forceinline__ void store_lane_t(float * base, int stride, int idx, const float (&a)[T]) {
+    const int lane = threadIdx.x & 31;
+#pragma unroll
+    for (int t = 0; t < T; t++)
+        if (lane == t) base[t * stride + idx] = a[t];
+}
+
+// a[k][t] -> base[t * stride + idx + k]
+template <int T>
+__device__ __forceinline__ void store_pair_t(float * base, int stride, int idx, const float (&a)[2][T]) {
+    const int lane = threadIdx.x & 31;
+    const float * s_rs = misc(nullptr);
+#pragma unroll
+    for (int t = 0; t < T; t++)
+        if ((lane >> 1) == t) base[t * stride + idx + (lane & 1)] = ((lane & 1) ? a[1][t] : a[0][t]) * s_rs[t];
+}
+
+// delta-net input projections: alpha/beta (fp32), qkv -> conv ring, z
+template <int T>
+__device__ __noinline__ void dn_proj(const LayerW & W, int dl, int n, int dn_c, uint8_t * /*sm*/) {
+    uint8_t * const sm = smem;
+    const int lane = threadIdx.x & 31;
+    const SX sx = make_sx(sm, U_D);
+    float * s_rs = misc(sm);
+    {
+        const int gw = gwarp(), W_ = nwarps(), lo = AB_SPLIT * 2 * NVH;
+        const int first = lo + (((gw - lo) % W_) + W_) % W_;
+        if (first < lo + QKV / 2) pf_rows(W.qkv, 2 * (first - lo), 2, 1024);
+    }
+    fill_xs<T>(cB.qn, 0, true, sx, s_rs);
+    float * conv = cB.conv + (size_t) dl * CONV_RING * QKV;
+    const int n_ab = AB_SPLIT * 2 * NVH, n_qkv = QKV / 2, n_z = VD / 2;
+    // alpha / beta: fp32 rows with the norm weight folded in (dot with the raw residual), each
+    // row split into AB_SPLIT K-chunks so these heavier items do not form a tail
+    for (int it = gwarp(); it < n_ab; it += nwarps()) {
+        const int row = it % (2 * NVH), ch = it / (2 * NVH);
+        const float * wr = W.ab + (size_t) row * D;
+        float acc[T];
+#pragma unroll
+        for (int t = 0; t < T; t++) acc[t] = 0.f;
+        for (int k = ch * (D / AB_SPLIT) + lane * 4; k < (ch + 1) * (D / AB_SPLIT); k += 128) {
+            const float4 w = ldw4f(wr + k);
+#pragma unroll
+            for (int t = 0; t < T; t++) {
+                const float4 xv = __ldcg(reinterpret_cast<const float4 *>(cB.x + t * D + k));
+                acc[t] += w.x * xv.x + w.y * xv.y + w.z * xv.z + w.w * xv.w;
+            }
+        }
+#pragma unroll
+        for (int t = 0; t < T; t++) acc[t] = wsum(acc[t]) * s_rs[t];
+        store_lane_t<T>(cB.ab + ch * MAXT * 2 * NVH, 2 * NVH, row, acc);
+    }
+    gemv_pairs_46<T, 5>(W.qkv, n_ab, n_ab + n_qkv, [=](int r, const float (&a)[2][T]) {
+        const int lane = threadIdx.x & 31;
+#pragma unroll
+        for (int t = 0; t < T; t++)
+            if ((lane >> 1) == t)
+                conv[((n + t) % CONV_RING) * QKV + r + (lane & 1)] = ((lane & 1) ? a[1][t] : a[0][t]) * misc(nullptr)[t];
+    });
+    gemv_pairs<T, 5, T_ANY>(W.gate, n_ab + n_qkv, n_ab + n_qkv + n_z,
+                            [=](int r, const float (&a)[2][T]) { store_pair_t<T>(cB.z, VD, r, a); });
+    // Warm L2 with what dn_core will read, while the other blocks are still projecting:
+    // the head's recurrent state (64 KB), its conv weights, older conv rows and replay entries.
+    for (int h=blockIdx.x; h<NVH; h+=gridDim.x) {
+        const int kh = h % NKH, tid = threadIdx.x;
+        pf_l2(cB.dstate + ((size_t) dl * NVH + h) * 128 * 128 + tid * 32);
+        if (tid == 0) {
+            pf_l2(W.dt + (h & ~31));
+            pf_l2(W.A + (h & ~31));
+            pf_l2(W.snorm);
+            pf_l2(W.snorm + 32);
+            pf_l2(W.snorm + 64);
+            pf_l2(W.snorm + 96);
+        }
+        if (tid < 384) {
+            const int ch = tid < 128 ? kh * 128 + tid : (tid < 256 ? 2048 + kh * 128 + (tid - 128) : 4096 + h * 128 + (tid - 256));
+            if ((tid & 7) == 0) pf_l2(W.conv + ch * 4);
+            if ((tid & 31) == 0)
+                for (int j = 0; j < 3; j++)
+                    if (n - 3 + j >= 0) pf_l2(conv + ((n - 3 + j) % CONV_RING) * QKV + ch);
+        }
+        const float * ring = cB.kvgb + (size_t) dl * KV_RING * KVGB;
+        for (int i = tid; i < (n - dn_c) * 8; i += NT) {
+            const float * slot = ring + (size_t) ((dn_c + (i >> 3)) % KV_RING) * KVGB;
+            const int c = (i & 7);
+            pf_l2(c < 4 ? slot + kh * 128 + c * 32 : slot + KVGB_V + h * 128 + (c - 4) * 32);
+        }
+    }
+}
+
+// delta-net core: one block per value head (48 blocks).  conv1d+silu, l2-norm, gated delta
+// rule (with replay of pending accepted tokens), gated rms-norm, quantise for ssm_out.
+template <int T>
+__device__ __noinline__ void dn_core(const LayerW & W, int dl, int n, int dn_c, int n_commit, uint8_t * /*sm*/) {
+    uint8_t * const sm = smem;
+    for (int h = blockIdx.x; h < NVH; h += gridDim.x) {
+    const int kh = h % NKH;
+    const int tid = threadIdx.x, lane = tid & 31, warp = tid >> 5;
+    // thread owns state column `col`, rows [32 r, 32 r + 32)  (S stored as [col][row])
+    const int col = tid >> 2, r = tid & 3;
+    constexpr int NE = T + MAXT - 1;     // max events: up to MAXT - 1 replayed accepted drafts + T new tokens
+    constexpr int QS = 4 * 36;           // q / k with a 4-float pad per 32-row quarter (bank spread)
+    float * s_q = reinterpret_cast<float *>(sm); // [NE][QS]
+    float * s_k = s_q + NE * QS;                 // [NE][QS]
+    float * s_v = s_k + NE * QS;                 // [NE][128]
+    float * s_o = s_v + NE * 128;                // [T][128]
+    float * s_z = s_o + T * 128;                 // [T][128]
+    float * s_gb = s_z + T * 128;                // [NE][2]
+    float * s_raw = s_gb + 32;                   // [T][384] conv outputs (silu), 16-byte aligned
+
+    float * Sg = cB.dstate + ((size_t) dl * NVH + h) * 128 * 128 + col * 128 + 32 * r;
+    float4 S[8];
+#pragma unroll
+    for (int i = 0; i < 8; i++) S[i] = __ldcg(reinterpret_cast<const float4 *>(Sg) + i);
+
+    const int np = n - dn_c; // replayed (accepted, not yet committed) tokens
+    float * ring = cB.kvgb + (size_t) dl * KV_RING * KVGB;
+    const float * conv = cB.conv + (size_t) dl * CONV_RING * QKV;
+
+    // ---- prologue: every input of every event, one round of loads ----
+    if (tid < 384) {
+        const int ch = tid < 128 ? kh * 128 + tid : (tid < 256 ? 2048 + kh * 128 + (tid - 128) : 4096 + h * 128 + (tid - 256));
+        const float4 w = *reinterpret_cast<const float4 *>(W.conv + ch * 4);
+        float raw[T + 3];
+#pragma unroll
+        for (int j = 0; j < T + 3; j++) {
+            const int p = n - 3 + j;
+            raw[j] = p >= 0 ? __ldcg(conv + (p % CONV_RING) * QKV + ch) : 0.f;
+        }
+#pragma unroll
+        for (int t = 0; t < T; t++)
+            s_raw[t * 384 + tid] = silu(w.x * raw[t] + w.y * raw[t + 1] + w.z * raw[t + 2] + w.w * raw[t + 3]);
+    } else if (tid < 384 + T) {
+        const int t = tid - 384;
+        float al = 0.f, be = 0.f;
+#pragma unroll
+        for (int c = 0; c < AB_SPLIT; c++) {
+            al += __ldcg(cB.ab + (c * MAXT + t) * 2 * NVH + h);
+            be += __ldcg(cB.ab + (c * MAXT + t) * 2 * NVH + NVH + h);
+        }
+        float sp = al + W.dt[h];
+        sp = sp > 20.0f ? sp : logf(1.0f + expf(sp));
+        s_gb[2 * (np + t)] = expf(sp * W.A[h]);
+        s_gb[2 * (np + t) + 1] = 1.0f / (1.0f + expf(-be));
+    } else if (tid >= 448 && tid < 448 + np) {
+        const int e = tid - 448;
+        const float * slot = ring + (size_t) ((dn_c + e) % KV_RING) * KVGB;
+        s_gb[2 * e] = __ldcg(slot + KVGB_G + h);
+        s_gb[2 * e + 1] = __ldcg(slot + KVGB_B + h);
+    }
+    for (int i = tid; i < np * 128; i += NT) { // replayed k / v
+        const int e = i >> 7, c = i & 127;
+        const float * slot = ring + (size_t) ((dn_c + e) % KV_RING) * KVGB;
+        s_k[e * QS + (c >> 5) * 36 + (c & 31)] = __ldcg(slot + kh * 128 + c);
+        s_v[e * 128 + c] = __ldcg(slot + KVGB_V + h * 128 + c);
+    }
+    for (int i = tid; i < T * 128; i += NT) s_z[i] = __ldcg(cB.z + (i >> 7) * VD + h * 128 + (i & 127));
+    __syncthreads();
+
+    // l2-normalise q and k of the new tokens (warp 2t: q of token t, warp 2t+1: k), copy v
+    if (warp < 2 * T) {
+        const int t = warp >> 1, isk = warp & 1;
+        const float4 v = *reinterpret_cast<const float4 *>(s_raw + t * 384 + isk * 128 + lane * 4);
+        const float ss = wsum(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
+        float sc = rsqrtf(fmaxf(ss, EPS * EPS));
+        if (!isk) sc *= 0.08838834764831845f; // 1/sqrt(128)
+        float * dst = (isk ? s_k : s_q) + (np + t) * QS + (lane >> 3) * 36 + (lane & 7) * 4;
+        *reinterpret_cast<float4 *>(dst) = make_float4(v.x * sc, v.y * sc, v.z * sc, v.w * sc);
+    }
+    for (int i = tid; i < T * 128; i += NT) s_v[(np + (i >> 7)) * 128 + (i & 127)] = s_raw[(i >> 7) * 384 + 256 + (i & 127)];
+    __syncthreads();
+
+    // save the new tokens' (k, v, g, beta) for a possible replay next cycle
+    for (int i = tid; i < T * 128; i += NT) {
+        const int t = i >> 7, c = i & 127;
+        float * slot = ring + (size_t) ((n + t) % KV_RING) * KVGB;
+        if (h < NKH) slot[h * 128 + c] = s_k[(np + t) * QS + (c >> 5) * 36 + (c & 31)];
+        slot[KVGB_V + h * 128 + c] = s_v[(np + t) * 128 + c];
+        if (c == 0) {
+            slot[KVGB_G + h] = s_gb[2 * (np + t)];
+            slot[KVGB_B + h] = s_gb[2 * (np + t) + 1];
+        }
+    }
+
+    // ---- gated delta rule over all events; inputs are in shared memory, no barriers needed ----
+    for (int e = 0; e < np + T; e++) {
+        const float g = s_gb[2 * e], beta = s_gb[2 * e + 1];
+        const float4 * kq = reinterpret_cast<const float4 *>(s_k + e * QS + r * 36);
+        float kv = 0.f;
+#pragma unroll
+        for (int i = 0; i < 8; i++) {
+            const float4 k4 = kq[i];
+            kv += S[i].x * k4.x + S[i].y * k4.y + S[i].z * k4.z + S[i].w * k4.w;
+        }
+        kv += __shfl_xor_sync(0xffffffffu, kv, 1);
+        kv += __shfl_xor_sync(0xffffffffu, kv, 2);
+        const float dlt = (s_v[e * 128 + col] - g * kv) * beta;
+#pragma unroll
+        for (int i = 0; i < 8; i++) {
+            const float4 k4 = kq[i];
+            S[i].x = g * S[i].x + k4.x * dlt;
+            S[i].y = g * S[i].y + k4.y * dlt;
+            S[i].z = g * S[i].z + k4.z * dlt;
+            S[i].w = g * S[i].w + k4.w * dlt;
+        }
+        if (e >= np) {
+            const float4 * qq = reinterpret_cast<const float4 *>(s_q + e * QS + r * 36);
+            float o = 0.f;
+#pragma unroll
+            for (int i = 0; i < 8; i++) {
+                const float4 q4 = qq[i];
+                o += S[i].x * q4.x + S[i].y * q4.y + S[i].z * q4.z + S[i].w * q4.w;
+            }
+            o += __shfl_xor_sync(0xffffffffu, o, 1);
+            o += __shfl_xor_sync(0xffffffffu, o, 2);
+            if (r == 0) s_o[(e - np) * 128 + col] = o;
+        }
+        if (e == np + n_commit - 1) {
+#pragma unroll
+            for (int i = 0; i < 8; i++) reinterpret_cast<float4 *>(Sg)[i] = S[i];
+        }
+    }
+    __syncthreads();
+
+    // gated rms-norm + quantise: warp w -> token w / 4, 32-element block w % 4 of this head
+    for (int w = warp; w < 4 * T; w += NW) {
+        const int t = w >> 2, jb = w & 3;
+        const float4 v = *reinterpret_cast<const float4 *>(s_o + t * 128 + lane * 4);
+        const float rs = rsqrtf(wsum(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w) / 128.0f + EPS);
+        const int c = jb * 32 + lane;
+        const float y = s_o[t * 128 + c] * rs * W.snorm[c] * silu(s_z[t * 128 + c]);
+        q32_store(cB.qo, t, 4 * h + jb, y, 0.f, false);
+    }
+    __syncthreads();
+    }
+}
+
+// Quantized staging rows (payload followed by scales) -> FP16 tensor-core tiles.
+template <int MODE>
+__device__ __forceinline__ void kv_tile_to_f16(const uint8_t * src, __half * dK, __half * dV, int rows, int ld) {
+    for (int i = threadIdx.x; i < 2 * rows * 32; i += blockDim.x) {
+        const int which = i / (rows * 32), r = (i >> 5) % rows, c = i & 31;
+        constexpr int PAYLOAD = int(kv_payload_bytes(MODE, HD)), ROW_BYTES = PAYLOAD + HD / 32 * 2;
+        const uint8_t * row = src + (size_t) (which * rows + r) * ROW_BYTES;
+        __half2 h[4];
+        const float d = __half2float(reinterpret_cast<const __half *>(row + PAYLOAD)[c >> 2]);
+        if constexpr (MODE == 2) q4_to_f16(*reinterpret_cast<const unsigned *>(row + 4 * c), d, h);
+        else q8_to_f16(*reinterpret_cast<const uint2 *>(row + 8 * c), d, h);
+        *reinterpret_cast<int4 *>((which ? dV : dK) + (size_t) r * ld + 8 * c) = *reinterpret_cast<int4 *>(h);
+    }
+}
+
+// Async packed K/V copies; the last 16-byte chunk contains the eight scales.
+template <int MODE>
+__device__ __forceinline__ void kv_stage(uint8_t * dst, size_t row0, int rows, int np) {
+    constexpr int PAYLOAD = int(kv_payload_bytes(MODE, HD)), CHUNKS = PAYLOAD / 16 + 1;
+    constexpr int ROW_BYTES = PAYLOAD + HD / 32 * 2;
+    const uint8_t * Kq = static_cast<const uint8_t *>(cB.kc), * Vq = static_cast<const uint8_t *>(cB.vc);
+    for (int i = threadIdx.x; i < 2 * rows * CHUNKS; i += blockDim.x) {
+        const int which = i / (rows * CHUNKS), r = (i / CHUNKS) % rows, c = i % CHUNKS;
+        uint8_t * d = dst + (size_t) (which * rows + r) * ROW_BYTES + 16 * c;
+        if (r < np) {
+            const size_t row = row0 + r;
+            if (c < CHUNKS - 1) cp_async16(d, (which ? Vq : Kq) + row * PAYLOAD + 16 * c);
+            else cp_async16(d, (which ? cB.vsc : cB.ksc) + row * (HD / 32));
+        } else if (c == CHUNKS - 1) {
+            *reinterpret_cast<int4 *>(d) = make_int4(0, 0, 0, 0);
+        }
+    }
+}
+
+// split-K over the context: at most 20 chunks per kv head so all 4 x nch items run in one wave
+__device__ __forceinline__ void attn_dims(int L_ctx, int & nch, int & cs) {
+    nch = max(1, min(min(MAX_CH, max(1, int(gridDim.x) / NKV)), (L_ctx + 63) / 64));
+    cs = (L_ctx + nch - 1) / nch;
+}
+
+// attention q/k/v projections
+template <int T>
+__device__ __noinline__ void attn_proj(const LayerW & W, int slot, int n, uint8_t * /*sm*/) {
+    uint8_t * const sm = smem;
+    const int lane = threadIdx.x & 31;
+    (void) lane;
+    const SX sx = make_sx(sm, U_D);
+    if (gwarp() < QG / 2) pf_rows(W.q, 2 * gwarp(), 2, 576);
+    fill_xs<T>(cB.qn, 0, true, sx, misc(sm));
+    const int nq = QG / 2, nk = KVD / 2;
+    gemv_pairs<T, 5, T_ANY>(W.q, 0, nq, [=](int r, const float (&a)[2][T]) { store_pair_t<T>(cB.qbuf, QG, r, a); });
+    gemv_pairs<T, 5, T_ANY>(W.k, nq, nq + nk, [=](int r, const float (&a)[2][T]) { store_pair_t<T>(cB.kbuf, KVD, r, a); });
+    gemv_pairs_46<T, 5>(W.v, nq + nk, nq + 2 * nk, [=](int r, const float (&a)[2][T]) { store_pair_t<T>(cB.vbuf, KVD, r, a); });
+    // Warm L2 with what attn_core reads first: q/k norm weights, RoPE rows of the new positions,
+    // and the first K / V tile of this block's attention item (positions < n).
+    pf_block(W.qn, HD * 4);
+    pf_block(W.kn, HD *
+</tool_response><|im_end|>
+<|im_start|>user
+Return a focused unified diff improving input validation and a regression test. Keep your explanation brief. Start with the patch.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

@@ -1,0 +1,6 @@
+[mk] VRAM preflight: 11.60 GiB budget, 15.48 GiB free
+[mk] KV cache q8_0, 0.14 GB for 4096 positions
+[mk] weights 11.27 GB on device, 34 SMs, ctx 4096, n_draft 0, prefill chunk 128
+[mk] runtime VRAM: 11.214 GiB engine allocations, 11.993 GiB device used, 3.662 GiB free
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 16030 MiB):
+  Device 0: NVIDIA GeForce RTX 4060 Ti, compute capability 8.9, VMM: yes, VRAM: 16030 MiB

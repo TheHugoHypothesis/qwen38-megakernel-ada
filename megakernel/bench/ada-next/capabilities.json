@@ -1,0 +1,9 @@
+{
+  "device": 0, "name": "NVIDIA GeForce RTX 4060 Ti", "compute_capability": "8.9",
+  "sms": 34, "registers_per_sm": 65536, "max_threads_per_sm": 1536,
+  "shared_per_sm_bytes": 102400, "shared_block_optin_bytes": 101376,
+  "l2_bytes": 33554432, "persisting_l2_max_bytes": 23068672, "access_policy_window_max_bytes": 134213632,
+  "persisting_l2_current_bytes": 6291456, "cooperative_launch": true,
+  "gdn_state_one_layer_bytes": 3145728, "gdn_state_all_layers_bytes": 150994944,
+  "driver_api": 13040, "runtime_api": 13040, "settings_changed": false
+}

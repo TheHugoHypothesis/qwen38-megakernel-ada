@@ -1,0 +1,2 @@
+/usr/local/cuda/bin/nvcc -O3 -std=c++17 -arch=sm_89 -lineinfo -Xptxas -dlcm=cg -Xptxas -v -Xcompiler -fPIC -I../../llama.cpp/ggml/src -I../../llama.cpp/ggml/include tests/ffn_phases.cu -L../../llama.cpp/build/bin -lggml-base \
+	-Xlinker -rpath -Xlinker '$ORIGIN/../../llama.cpp/build/bin' -o ffn_phases_test 2> ffn_phases_ptxas.log

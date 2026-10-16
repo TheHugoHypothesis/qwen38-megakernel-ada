@@ -1,0 +1,10 @@
+/usr/local/cuda/bin/nvcc -O3 -std=c++17 -arch=sm_89 -lineinfo -Xptxas -dlcm=cg -Xptxas -v -Xcompiler -fPIC -I../../llama.cpp/ggml/src -I../../llama.cpp/ggml/include -c qwen38_mk.cu -o qwen38_mk.o 2> ptxas.log || (cat ptxas.log; false)
+/usr/local/cuda/bin/nvcc -O3 -std=c++17 -arch=sm_89 -I../../llama.cpp/include -I../../llama.cpp/ggml/include main.cu qwen38_mk.o \
+	-L../../llama.cpp/build/bin -lllama -lggml-base -lggml-cuda -lcublas -Xlinker -rpath -Xlinker '$ORIGIN/../../llama.cpp/build/bin' -o qwen38_mk
+/usr/local/cuda/bin/nvcc -O3 -std=c++17 -arch=sm_89 -shared -Xcompiler -fPIC -I../../llama.cpp/include -I../../llama.cpp/ggml/include capi.cpp qwen38_mk.o dflash_native.o \
+	-L../../llama.cpp/build/bin -lllama -lggml-base -lggml-cuda -lcublas -Xlinker -rpath -Xlinker '$ORIGIN/../../llama.cpp/build/bin' -o libqwen38mk.so
+/usr/local/cuda/bin/nvcc -O3 -std=c++17 -arch=sm_89 -I../../llama.cpp/include -I../../llama.cpp/src -I../../llama.cpp/ggml/include -I../../llama.cpp/ggml/src \
+	dflash_main.cpp dflash_bridge.cpp qwen38_mk.o dflash_native.o -L../../llama.cpp/build/bin -lllama -lggml-base -lggml-cuda -lcublas \
+	-Xlinker -rpath -Xlinker '$ORIGIN/../../llama.cpp/build/bin' -o qwen38_dflash
+/usr/local/cuda/bin/nvcc -O2 -std=c++17 -arch=sm_89 -I../../llama.cpp/ggml/include tests/external_verify.cpp qwen38_mk.o \
+	-L../../llama.cpp/build/bin -lggml-base -lggml-cuda -lcublas -Xlinker -rpath -Xlinker '$ORIGIN/../../llama.cpp/build/bin' -o external_verify_test

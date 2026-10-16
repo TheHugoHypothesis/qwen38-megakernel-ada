@@ -10,6 +10,8 @@
 #include "llama.h"
 #include "qwen38_mk.h"
 #include "dflash_native.h"
+#include "model_spec.h"
+#include "dflash_verify_policy.h"
 
 namespace {
 struct Handle {
@@ -18,6 +20,7 @@ struct Handle {
     const llama_vocab * vocab = nullptr;
     MKDFlashNative * dflash=nullptr;
     int draft_depth=0;
+    std::unique_ptr<DFlashVerifyPolicy> verify_policy;
     std::string err;
     ~Handle() { delete dflash;delete eng; if (lm) llama_model_free(lm); }
 };
@@ -27,6 +30,21 @@ thread_local std::string g_err;
 extern "C" {
 
 const char * mk_last_error() { return g_err.c_str(); }
+
+// Host-only schema inspection, including standard Swift and stripped targets.
+// No CUDA initialization, tokenizer allocation, or weight upload is needed.
+int mk_model_mtp_layers(const char * model) {
+    try {
+        if (!model) throw std::runtime_error("missing model path");
+        gguf::File file(model);
+        gguf::validate_qwen38(file, false);
+        const auto it = file.ints.find("qwen35.nextn_predict_layers");
+        return it == file.ints.end() ? 0 : int(it->second);
+    } catch (const std::exception & e) {
+        g_err = e.what();
+        return -1;
+    }
+}
 
 void * mk_new(const char * model, int ctx, int n_draft, const char * draft_vocab, int kv_mode) {
     try {
@@ -72,6 +90,7 @@ void * mk_new_dflash(const char * model,const char * draft,int ctx,int depth,int
         // capture and CUDA graph/library margin must precede auto chunk sizing.
         h->eng=new MKEngine(model,ctx,0,"",kv_mode,size_t(1792)*1024*1024);
         h->dflash=new MKDFlashNative(*h->eng,draft,ctx,llama_vocab_mask(dv));h->draft_depth=depth;
+        h->verify_policy=std::make_unique<DFlashVerifyPolicy>(depth,DFlashVerifyPolicy::environment());
         auto * owner=h.get();
         h->eng->enable_device_features(h->dflash->layers(),[owner](int pos,int n,const float * f){owner->dflash->inject_device(pos,n,f);});
         return h.release();
@@ -118,7 +137,7 @@ int mk_prefill(void * hp, const int * toks, int n) {
         auto * h=static_cast<Handle *>(hp);
         if(!toks||n<1)throw std::runtime_error("prefill requires token IDs");
         int first=h->eng->prefill(std::vector<int>(toks,toks+n));
-        if(h->dflash)h->dflash->checkpoint();
+        if(h->dflash){h->dflash->checkpoint();h->verify_policy->reset();}
         return first;
     } catch (const std::exception & e) {
         g_err = e.what();
@@ -136,11 +155,15 @@ int mk_step(void * hp, int * out, int cap) {
         if(!out||cap<1||(!h->dflash&&cap<h->eng->n_draft()+1))throw std::runtime_error("step output capacity is too small");
         if(h->dflash) {
             std::vector<int> proposals;
+            const int width=h->verify_policy->width();
             if(cap>1) {
                 proposals=h->dflash->draft(h->eng->position(),h->eng->sequence().back(),h->draft_depth);
-                proposals.resize(std::min(int(proposals.size()),cap-1));
+                proposals.resize(std::min(width,cap-1));
             }
+            const long before=h->eng->stats.accepted;
             h->eng->verify_external(proposals,v);
+            if(int(proposals.size())==width)
+                h->verify_policy->observe(width,int(h->eng->stats.accepted-before));
         } else h->eng->step(v);
         const int n = std::min((int) v.size(), cap);
         for (int i = 0; i < n; i++) out[i] = v[i];
@@ -151,11 +174,12 @@ int mk_step(void * hp, int * out, int cap) {
     }
 }
 
-void mk_reset(void * hp) { auto * h=static_cast<Handle *>(hp);h->eng->reset();if(h->dflash)h->dflash->reset(); }
+void mk_reset(void * hp) { auto * h=static_cast<Handle *>(hp);h->eng->reset();if(h->dflash){h->dflash->reset();h->verify_policy->reset();} }
 
 int mk_truncate(void * hp, int len) {
     try {
-        auto * h=static_cast<Handle *>(hp);h->eng->truncate(len);if(h->dflash)h->dflash->truncate(len);
+        auto * h=static_cast<Handle *>(hp);h->eng->truncate(len);
+        if(h->dflash){h->dflash->truncate(len);h->verify_policy->reset();}
         return 0;
     } catch (const std::exception & e) {
         g_err = e.what();
@@ -178,6 +202,7 @@ int mk_rewind_to_checkpoint(void * hp) {
     try {auto * h=static_cast<Handle *>(hp);
         if(!h->eng->rewind_to_checkpoint())return -1;
         if(h->dflash&&!h->dflash->restore_checkpoint())throw std::runtime_error("draft checkpoint missing");
+        if(h->verify_policy)h->verify_policy->reset();
         return 0;
     } catch(const std::exception & e){g_err=e.what();return -1;}
 }

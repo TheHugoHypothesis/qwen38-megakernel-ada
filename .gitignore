@@ -10,3 +10,11 @@ megakernel/*_debug
 megakernel/*_bench
 megakernel/*ptxas.log
 megakernel/bench/**/run-output/
+megakernel/bench/ada-next/baseline/
+megakernel/tools/ada_capabilities
+megakernel/bench/ada-deep/baseline/
+megakernel/bench/ada-deep/**/*.f32
+megakernel/bench/ada-deep/**/*.bin
+megakernel/bench/ada-deep/**/*.sass
+megakernel/bench/ada-deep/**/*.ptx
+megakernel/tools/tokenize_ids

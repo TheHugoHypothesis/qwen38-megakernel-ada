@@ -8,6 +8,31 @@ NVFLAGS = -O3 -std=c++17 -arch=$(ARCH) -lineinfo -Xptxas -dlcm=cg -Xptxas -v -Xc
 
 all: qwen38_mk libqwen38mk.so tools/vocab_freq
 
+tools/ada_capabilities: tools/ada_capabilities.cu
+	$(NVCC) -O2 -std=c++17 -arch=$(ARCH) $< -o $@
+
+tools/tokenize_ids: tools/tokenize_ids.cpp
+	$(CXX) -O2 -std=c++17 -I$(LLAMA)/include -I$(LLAMA)/ggml/include $< -L$(LLAMA)/build/bin -lllama \
+		-Wl,-rpath,'$$ORIGIN/../$(LLAMA)/build/bin' -o $@
+
+dflash_features_test: tests/dflash_features.cpp qwen38_mk.o dflash_native.o
+	$(NVCC) -O3 -std=c++17 -arch=$(ARCH) -I$(LLAMA)/include -I$(LLAMA)/ggml/include $< qwen38_mk.o dflash_native.o \
+		-L$(LLAMA)/build/bin -lllama -lggml-base -lggml-cuda -lcublas -Xlinker -rpath -Xlinker '$$ORIGIN/$(LLAMA)/build/bin' -o $@
+
+ffn_phases_test: tests/ffn_phases.cu qwen38_mk.cu native_quant.cuh native_iq_mma.cuh
+	$(NVCC) $(NVFLAGS) $< -L$(LLAMA)/build/bin -lggml-base \
+		-Xlinker -rpath -Xlinker '$$ORIGIN/$(LLAMA)/build/bin' -o $@ 2> ffn_phases_ptxas.log
+
+iq2_decode_test: tests/iq2_decode.cu native_quant.cuh gguf.h
+	$(NVCC) -O3 -std=c++17 -arch=$(ARCH) -I$(LLAMA)/ggml/include -I$(LLAMA)/ggml/src $< -o $@
+
+iq_small_test: tests/iq_small.cu native_iq_mma.cuh native_quant.cuh gguf.h
+	$(NVCC) -O3 -std=c++17 -arch=$(ARCH) -I$(LLAMA)/ggml/include -I$(LLAMA)/ggml/src $< \
+		-L$(LLAMA)/build/bin -lggml-base -Xlinker -rpath -Xlinker '$$ORIGIN/$(LLAMA)/build/bin' -o $@
+
+dflash_policy_test: tests/dflash_policy.cpp dflash_verify_policy.h
+	$(CXX) -O2 -std=c++17 $< -o $@
+
 dflash_native.o: dflash_native.cu dflash_native.h native_quant.cuh gguf.h qwen38_mk.h
 	$(NVCC) $(NVFLAGS) -c dflash_native.cu -o $@ 2> dflash_ptxas.log || (cat dflash_ptxas.log; false)
 
@@ -27,12 +52,12 @@ target_features_test: tests/target_features.cpp qwen38_mk.o qwen38_mk.h
 qwen38_mk.o: qwen38_mk.cu qwen38_mk.h gguf.h kv_quant.cuh native_quant.cuh native_iq_mma.cuh native_prefill.cuh model_spec.h prefill.cuh prefill_gemm.cuh $(LLAMA)/ggml/src/ggml-common.h
 	$(NVCC) $(NVFLAGS) -c qwen38_mk.cu -o $@ 2> ptxas.log || (cat ptxas.log; false)
 
-qwen38_mk: qwen38_mk.o main.cu
+qwen38_mk: qwen38_mk.o main.cu model_spec.h gguf.h
 	$(NVCC) -O3 -std=c++17 -arch=$(ARCH) -I$(LLAMA)/include -I$(LLAMA)/ggml/include main.cu qwen38_mk.o \
 		-L$(LLAMA)/build/bin -lllama -lggml-base -lggml-cuda -lcublas -Xlinker -rpath -Xlinker '$$ORIGIN/$(LLAMA)/build/bin' -o $@
 
 # engine + tokenizer as a shared library with a C API (capi.cpp), used by server/mk_server.py
-libqwen38mk.so: qwen38_mk.o dflash_native.o capi.cpp qwen38_mk.h dflash_native.h
+libqwen38mk.so: qwen38_mk.o dflash_native.o capi.cpp qwen38_mk.h dflash_native.h model_spec.h gguf.h dflash_verify_policy.h
 	$(NVCC) -O3 -std=c++17 -arch=$(ARCH) -shared -Xcompiler -fPIC -I$(LLAMA)/include -I$(LLAMA)/ggml/include capi.cpp qwen38_mk.o dflash_native.o \
 		-L$(LLAMA)/build/bin -lllama -lggml-base -lggml-cuda -lcublas -Xlinker -rpath -Xlinker '$$ORIGIN/$(LLAMA)/build/bin' -o $@
 
@@ -41,10 +66,12 @@ tools/vocab_freq: tools/vocab_freq.cpp
 		-Wl,-rpath,'$$ORIGIN/../$(LLAMA)/build/bin' -o $@
 
 clean:
+	rm -f dflash_features_test ffn_phases_test ffn_phases_*_test iq2_decode_test tools/tokenize_ids ffn_phases_ptxas.log
+	rm -f iq_small_test dflash_policy_test tools/ada_capabilities
 	rm -f kv_quant_test kv_attention_test kv_attention_ptxas.log qwen38_mk libqwen38mk.so qwen38_mk.o dflash_native.o ptxas.log dflash_ptxas.log dflash_math_ptxas.log dflash_head_ptxas.log iq_mma_ptxas.log iq_ffn_ptxas.log tools/vocab_freq native_quant_test gguf_parser_test model_schema_test native_gemm_test iq_mma_test bench/iq_ffn_bench qwen38_dflash external_verify_test dflash_math_test dflash_head_test target_features_test
 
 # Native DFlash2 plus a selectable GGML reference for numerical validation.
-qwen38_dflash: qwen38_mk.o dflash_native.o dflash_main.cpp dflash_bridge.cpp dflash_bridge.h qwen38_mk.h $(LLAMA)/src/llama-model.h
+qwen38_dflash: qwen38_mk.o dflash_native.o dflash_main.cpp dflash_bridge.cpp dflash_bridge.h qwen38_mk.h dflash_verify_policy.h $(LLAMA)/src/llama-model.h
 	$(NVCC) -O3 -std=c++17 -arch=$(ARCH) -I$(LLAMA)/include -I$(LLAMA)/src -I$(LLAMA)/ggml/include -I$(LLAMA)/ggml/src \
 		dflash_main.cpp dflash_bridge.cpp qwen38_mk.o dflash_native.o -L$(LLAMA)/build/bin -lllama -lggml-base -lggml-cuda -lcublas \
 		-Xlinker -rpath -Xlinker '$$ORIGIN/$(LLAMA)/build/bin' -o $@

@@ -1,0 +1,3 @@
+========= COMPUTE-SANITIZER
+PASS 13824 exact ordered T4 dots, 36 IQ pairs x 3 inputs; max NRMSE 1.68455996e-07 abs 4.35102834e-07
+========= ERROR SUMMARY: 0 errors

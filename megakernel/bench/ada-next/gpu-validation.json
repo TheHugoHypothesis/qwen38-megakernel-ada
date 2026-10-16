@@ -1,0 +1,141 @@
+[
+  {
+    "check": "external-q8",
+    "returncode": 0,
+    "command": [
+      "external_verify_test",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+      "bench/ada-next/fixtures/short_code.ids",
+      "bench/ada-next/fixtures/long_code.ids",
+      "1"
+    ],
+    "environment": {
+      "MK_FFN_IQ_SMALL": "1"
+    },
+    "log": "external-q8.log"
+  },
+  {
+    "check": "external-q4",
+    "command": [
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/external_verify_test",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+      "bench/ada-next/fixtures/short_code.ids",
+      "bench/ada-next/fixtures/long_code.ids",
+      "2"
+    ],
+    "returncode": 0,
+    "seconds": 67.18299276500011,
+    "environment": {
+      "MK_FFN_IQ_SMALL": "1"
+    }
+  },
+  {
+    "check": "iq-small-memcheck",
+    "command": [
+      "/usr/local/cuda/bin/compute-sanitizer",
+      "--tool",
+      "memcheck",
+      "--error-exitcode",
+      "99",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/iq_small_test",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf"
+    ],
+    "returncode": 0,
+    "seconds": 0.593050329000107,
+    "environment": {
+      "MK_FFN_IQ_SMALL": "1"
+    }
+  },
+  {
+    "check": "http-verify3-q8",
+    "command": [
+      "/usr/bin/python3",
+      "tests/gpu_server_smoke.py",
+      "--model",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+      "--draft-model",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf",
+      "--lib",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/libqwen38mk.so",
+      "--draft",
+      "7",
+      "--verify-width",
+      "3",
+      "--ctx",
+      "8192",
+      "--kv",
+      "q8",
+      "--prefill-chunk",
+      "128",
+      "--port",
+      "18114",
+      "--agentic",
+      "--output",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/bench/ada-next/http-verify3-q8"
+    ],
+    "returncode": 0,
+    "seconds": 31.735665327999868,
+    "environment": {
+      "MK_FFN_IQ_SMALL": "1"
+    }
+  },
+  {
+    "check": "http-auto-96k-q4",
+    "command": [
+      "/usr/bin/python3",
+      "tests/gpu_server_smoke.py",
+      "--model",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+      "--draft-model",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf",
+      "--lib",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/libqwen38mk.so",
+      "--draft",
+      "7",
+      "--verify-width",
+      "auto",
+      "--ctx",
+      "96000",
+      "--kv",
+      "q4",
+      "--prefill-chunk",
+      "128",
+      "--port",
+      "18114",
+      "--agentic",
+      "--long-records",
+      "2800",
+      "--output",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/bench/ada-next/http-auto-96k-q4"
+    ],
+    "returncode": 0,
+    "seconds": 151.50168856399978,
+    "environment": {
+      "MK_FFN_IQ_SMALL": "1"
+    }
+  },
+  {
+    "check": "http-default-active",
+    "returncode": 0,
+    "command": [
+      "/usr/bin/python3",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/open-jet/megakernel/server/mk_server.py",
+      "-m",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+      "-c",
+      "4096",
+      "--kv",
+      "q8",
+      "-d",
+      "7",
+      "--prefill-chunk",
+      "128",
+      "--port",
+      "18114",
+      "--draft-model",
+      "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf"
+    ],
+    "http_checks": 13,
+    "results": "http-default-active/results.json"
+  }
+]

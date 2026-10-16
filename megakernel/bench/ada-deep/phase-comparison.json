@@ -1,0 +1,250 @@
+{
+  "fixed": {
+    "gu_exact": true,
+    "bad": [],
+    "down": [
+      {
+        "layer": 0,
+        "type": 22,
+        "legacy_ms": 0.251443,
+        "tiles_ms": 0.280534,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 1,
+        "type": 21,
+        "legacy_ms": 0.278899,
+        "tiles_ms": 0.308474,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 4,
+        "type": 18,
+        "legacy_ms": 0.257155,
+        "tiles_ms": 0.285782,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 5,
+        "type": 23,
+        "legacy_ms": 0.302,
+        "tiles_ms": 0.338067,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 11,
+        "type": 17,
+        "legacy_ms": 0.245174,
+        "tiles_ms": 0.261779,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 16,
+        "type": 10,
+        "legacy_ms": 0.41096,
+        "tiles_ms": 0.421827,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 28,
+        "type": 12,
+        "legacy_ms": 0.280806,
+        "tiles_ms": 0.325978,
+        "exact": true,
+        "nrmse": 0
+      }
+    ]
+  },
+  "fence4": {
+    "gu_exact": true,
+    "bad": [],
+    "down": [
+      {
+        "layer": 0,
+        "type": 22,
+        "legacy_ms": 0.250298,
+        "tiles_ms": 0.281968,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 1,
+        "type": 21,
+        "legacy_ms": 0.278957,
+        "tiles_ms": 0.309766,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 4,
+        "type": 18,
+        "legacy_ms": 0.2556,
+        "tiles_ms": 0.285418,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 5,
+        "type": 23,
+        "legacy_ms": 0.301034,
+        "tiles_ms": 0.3372,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 11,
+        "type": 17,
+        "legacy_ms": 0.2452,
+        "tiles_ms": 0.262016,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 16,
+        "type": 10,
+        "legacy_ms": 0.409629,
+        "tiles_ms": 0.422349,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 28,
+        "type": 12,
+        "legacy_ms": 0.279603,
+        "tiles_ms": 0.325862,
+        "exact": true,
+        "nrmse": 0
+      }
+    ]
+  },
+  "direct": {
+    "gu_exact": true,
+    "bad": [],
+    "down": [
+      {
+        "layer": 0,
+        "type": 22,
+        "legacy_ms": 0.238419,
+        "tiles_ms": 0.264589,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 1,
+        "type": 21,
+        "legacy_ms": 0.27863,
+        "tiles_ms": 0.305725,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 4,
+        "type": 18,
+        "legacy_ms": 0.253386,
+        "tiles_ms": 0.282291,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 5,
+        "type": 23,
+        "legacy_ms": 0.296602,
+        "tiles_ms": 0.333459,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 11,
+        "type": 17,
+        "legacy_ms": 0.238605,
+        "tiles_ms": 0.256093,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 16,
+        "type": 10,
+        "legacy_ms": 0.406461,
+        "tiles_ms": 0.418179,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 28,
+        "type": 12,
+        "legacy_ms": 0.280195,
+        "tiles_ms": 0.321901,
+        "exact": true,
+        "nrmse": 0
+      }
+    ]
+  },
+  "nol1": {
+    "gu_exact": true,
+    "bad": [],
+    "down": [
+      {
+        "layer": 0,
+        "type": 22,
+        "legacy_ms": 0.33896,
+        "tiles_ms": 0.360013,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 1,
+        "type": 21,
+        "legacy_ms": 0.292253,
+        "tiles_ms": 0.311779,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 4,
+        "type": 18,
+        "legacy_ms": 0.273315,
+        "tiles_ms": 0.293312,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 5,
+        "type": 23,
+        "legacy_ms": 0.378774,
+        "tiles_ms": 0.399869,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 11,
+        "type": 17,
+        "legacy_ms": 0.238749,
+        "tiles_ms": 0.262688,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 16,
+        "type": 10,
+        "legacy_ms": 0.453066,
+        "tiles_ms": 0.46423,
+        "exact": true,
+        "nrmse": 0
+      },
+      {
+        "layer": 28,
+        "type": 12,
+        "legacy_ms": 0.279488,
+        "tiles_ms": 0.322323,
+        "exact": true,
+        "nrmse": 0
+      }
+    ]
+  }
+}

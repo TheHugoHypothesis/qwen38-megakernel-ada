@@ -1,0 +1,283 @@
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 16030 MiB):
+  Device 0: NVIDIA GeForce RTX 4060 Ti, compute capability 8.9, VMM: yes, VRAM: 16030 MiB
+llama_model_loader: loaded meta data with 53 key-value pairs and 851 tensors from /home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf (version GGUF V3 (latest))
+llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
+llama_model_loader: - kv   0:                       general.architecture str              = qwen35
+llama_model_loader: - kv   1:                               general.type str              = model
+llama_model_loader: - kv   2:                     general.sampling.top_k i32              = 20
+llama_model_loader: - kv   3:                     general.sampling.top_p f32              = 0.950000
+llama_model_loader: - kv   4:                      general.sampling.temp f32              = 1.000000
+llama_model_loader: - kv   5:                               general.name str              = Swift 1.5 ASCII Condensed (no MTP)
+llama_model_loader: - kv   6:                            general.version str              = 1.5
+llama_model_loader: - kv   7:                           general.basename str              = Swift
+llama_model_loader: - kv   8:                         general.size_label str              = 27B
+llama_model_loader: - kv   9:                            general.license str              = other
+llama_model_loader: - kv  10:                       general.license.name str              = swift-open-license-1.0
+llama_model_loader: - kv  11:                       general.license.link str              = https://huggingface.co/ukisai/Swift-1...
+llama_model_loader: - kv  12:                   general.base_model.count u32              = 1
+llama_model_loader: - kv  13:                  general.base_model.0.name str              = Qwen3.8 27B
+llama_model_loader: - kv  14:          general.base_model.0.organization str              = Qwen
+llama_model_loader: - kv  15:              general.base_model.0.repo_url str              = https://huggingface.co/Qwen/Qwen3.8-27B
+llama_model_loader: - kv  16:                               general.tags arr[str,7]       = ["qwen3_8", "reasoning", "efficient-t...
+llama_model_loader: - kv  17:                         qwen35.block_count u32              = 64
+llama_model_loader: - kv  18:                      qwen35.context_length u32              = 262144
+llama_model_loader: - kv  19:                    qwen35.embedding_length u32              = 5120
+llama_model_loader: - kv  20:                 qwen35.feed_forward_length u32              = 17408
+llama_model_loader: - kv  21:                qwen35.attention.head_count u32              = 24
+llama_model_loader: - kv  22:             qwen35.attention.head_count_kv u32              = 4
+llama_model_loader: - kv  23:             qwen35.rope.dimension_sections arr[i32,4]       = [11, 11, 10, 0]
+llama_model_loader: - kv  24:                      qwen35.rope.freq_base f32              = 10000000.000000
+llama_model_loader: - kv  25:    qwen35.attention.layer_norm_rms_epsilon f32              = 0.000001
+llama_model_loader: - kv  26:                qwen35.attention.key_length u32              = 256
+llama_model_loader: - kv  27:              qwen35.attention.value_length u32              = 256
+llama_model_loader: - kv  28:                     qwen35.ssm.conv_kernel u32              = 4
+llama_model_loader: - kv  29:                      qwen35.ssm.state_size u32              = 128
+llama_model_loader: - kv  30:                     qwen35.ssm.group_count u32              = 16
+llama_model_loader: - kv  31:                  qwen35.ssm.time_step_rank u32              = 48
+llama_model_loader: - kv  32:                      qwen35.ssm.inner_size u32              = 6144
+llama_model_loader: - kv  33:          qwen35.attention.recurrent_layers arr[bool,64]     = [true, true, true, false, true, true,...
+llama_model_loader: - kv  34:             qwen35.full_attention_interval u32              = 4
+llama_model_loader: - kv  35:                qwen35.rope.dimension_count u32              = 64
+llama_model_loader: - kv  36:               general.quantization_version u32              = 2
+llama_model_loader: - kv  37:                          general.file_type u32              = 26
+llama_model_loader: - kv  38:                      quantize.imatrix.file str              = /data/out15b/imatrix-swift15-v1mix.gguf
+llama_model_loader: - kv  39:                   quantize.imatrix.dataset str              = /data/calib/imatrix_calib.txt
+llama_model_loader: - kv  40:             quantize.imatrix.entries_count u32              = 496
+llama_model_loader: - kv  41:              quantize.imatrix.chunks_count u32              = 2472
+llama_model_loader: - kv  42:                       tokenizer.ggml.model str              = gpt2
+llama_model_loader: - kv  43:                         tokenizer.ggml.pre str              = qwen35
+llama_model_loader: - kv  44:                      tokenizer.ggml.tokens arr[str,130020]  = ["!", "\"", "#", "$", "%", "&", "'", ...
+llama_model_loader: - kv  45:                  tokenizer.ggml.token_type arr[i32,130020]  = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...
+llama_model_loader: - kv  46:                      tokenizer.ggml.merges arr[str,129463]  = ["Ġ Ġ", "ĠĠ ĠĠ", "i n", "Ġ t",...
+llama_model_loader: - kv  47:                tokenizer.ggml.eos_token_id u32              = 129746
+llama_model_loader: - kv  48:            tokenizer.ggml.padding_token_id u32              = 129744
+llama_model_loader: - kv  49:                tokenizer.ggml.bos_token_id u32              = 129744
+llama_model_loader: - kv  50:               tokenizer.ggml.add_bos_token bool             = false
+llama_model_loader: - kv  51:                    tokenizer.chat_template str              = {%- set image_count = namespace(value...
+llama_model_loader: - kv  52:                qwen35.nextn_predict_layers u32              = 0
+llama_model_loader: - type  f32:  353 tensors
+llama_model_loader: - type q2_K:   13 tensors
+llama_model_loader: - type q4_K:   39 tensors
+llama_model_loader: - type iq2_xxs:    5 tensors
+llama_model_loader: - type iq2_xs:    9 tensors
+llama_model_loader: - type iq3_xxs:   78 tensors
+llama_model_loader: - type iq3_s:  144 tensors
+llama_model_loader: - type iq2_s:   17 tensors
+llama_model_loader: - type iq4_xs:   96 tensors
+llama_model_loader: - type iq1_m:    1 tensors
+llama_model_loader: - type bf16:   96 tensors
+print_info: file format = GGUF V3 (latest)
+print_info: file type   = IQ3_S - 3.4375 bpw
+print_info: file size   = 10.45 GiB (3.50 BPW) 
+llama_prepare_model_devices: using device CUDA0 (NVIDIA GeForce RTX 4060 Ti) (0000:01:00.0) - 15862 MiB free
+init_tokenizer: initializing tokenizer for type 2
+load: 0 unused tokens
+load: control token: 129776 '<|audio_pad|>' is not marked as EOG
+load: control token: 129770 '<|audio_start|>' is not marked as EOG
+load: control token: 129761 '<|fim_middle|>' is not marked as EOG
+load: control token: 129760 '<|fim_prefix|>' is not marked as EOG
+load: control token: 129756 '<|image_pad|>' is not marked as EOG
+load: control token: 129754 '<|vision_end|>' is not marked as EOG
+load: control token: 129752 '<|quad_end|>' is not marked as EOG
+load: control token: 129750 '<|box_end|>' is not marked as EOG
+load: control token: 129747 '<|object_ref_start|>' is not marked as EOG
+load: control token: 129775 '<tts_text_bos_single>' is not marked as EOG
+load: control token: 129749 '<|box_start|>' is not marked as EOG
+load: control token: 129774 '<tts_text_eod>' is not marked as EOG
+load: control token: 129748 '<|object_ref_end|>' is not marked as EOG
+load: control token: 129771 '<|audio_end|>' is not marked as EOG
+load: control token: 129773 '<tts_text_bos>' is not marked as EOG
+load: control token: 129753 '<|vision_start|>' is not marked as EOG
+load: control token: 129755 '<|vision_pad|>' is not marked as EOG
+load: control token: 129772 '<tts_pad>' is not marked as EOG
+load: control token: 129757 '<|video_pad|>' is not marked as EOG
+load: control token: 129745 '<|im_start|>' is not marked as EOG
+load: control token: 129762 '<|fim_suffix|>' is not marked as EOG
+load: control token: 129751 '<|quad_start|>' is not marked as EOG
+load: printing all EOG tokens:
+load:   - 129744 ('<|endoftext|>')
+load:   - 129746 ('<|im_end|>')
+load:   - 129763 ('<|fim_pad|>')
+load:   - 129764 ('<|repo_name|>')
+load:   - 129765 ('<|file_sep|>')
+load: special tokens cache size = 33
+load: token to piece cache size = 0.8166 MB
+print_info: arch                  = qwen35
+print_info: vocab_only            = 1
+print_info: no_alloc              = 0
+print_info: vocab type            = BPE
+print_info: n_vocab               = 130020
+print_info: n_merges              = 129463
+print_info: BOS token             = 129744 '<|endoftext|>'
+print_info: EOS token             = 129746 '<|im_end|>'
+print_info: EOT token             = 129746 '<|im_end|>'
+print_info: PAD token             = 129744 '<|endoftext|>'
+print_info: LF token              = 198 'Ċ'
+print_info: FIM PRE token         = 129760 '<|fim_prefix|>'
+print_info: FIM SUF token         = 129762 '<|fim_suffix|>'
+print_info: FIM MID token         = 129761 '<|fim_middle|>'
+print_info: FIM PAD token         = 129763 '<|fim_pad|>'
+print_info: FIM REP token         = 129764 '<|repo_name|>'
+print_info: FIM SEP token         = 129765 '<|file_sep|>'
+print_info: EOG token             = 129744 '<|endoftext|>'
+print_info: EOG token             = 129746 '<|im_end|>'
+print_info: EOG token             = 129763 '<|fim_pad|>'
+print_info: EOG token             = 129764 '<|repo_name|>'
+print_info: EOG token             = 129765 '<|file_sep|>'
+print_info: max token length      = 256
+llama_model_load: vocab only - skipping tensors
+[mk] VRAM preflight: 13.91 GiB budget, 15.49 GiB free
+[mk] KV cache q4_sym, 0.74 GB for 40000 positions
+[mk] weights 11.27 GB on device, 34 SMs, ctx 40000, n_draft 0, prefill chunk 128
+llama_model_loader: loaded meta data with 48 key-value pairs and 81 tensors from /home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf (version GGUF V3 (latest))
+llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
+llama_model_loader: - kv   0:                       general.architecture str              = dflash
+llama_model_loader: - kv   1:                               general.type str              = model
+llama_model_loader: - kv   2:                               general.name str              = Qwen3.8-27B-DFlash2 ASCII Condensed
+llama_model_loader: - kv   3:                             general.author str              = Inco AI
+llama_model_loader: - kv   4:                       general.organization str              = z-lab
+llama_model_loader: - kv   5:                           general.finetune str              = DFlash2
+llama_model_loader: - kv   6:                           general.basename str              = Qwen3.8-27B
+llama_model_loader: - kv   7:                         general.size_label str              = 1.9B
+llama_model_loader: - kv   8:                            general.license str              = apache-2.0
+llama_model_loader: - kv   9:                         general.source.url str              = https://huggingface.co/z-lab/Qwen3.8-...
+llama_model_loader: - kv  10:                   general.base_model.count u32              = 1
+llama_model_loader: - kv  11:                  general.base_model.0.name str              = Qwen3.8 27B
+llama_model_loader: - kv  12:          general.base_model.0.organization str              = Qwen
+llama_model_loader: - kv  13:              general.base_model.0.repo_url str              = https://huggingface.co/Qwen/Qwen3.8-27B
+llama_model_loader: - kv  14:                               general.tags arr[str,6]       = ["dflash2", "speculative-decoding", "...
+llama_model_loader: - kv  15:                         dflash.block_count u32              = 5
+llama_model_loader: - kv  16:                      dflash.context_length u32              = 262144
+llama_model_loader: - kv  17:                    dflash.embedding_length u32              = 5120
+llama_model_loader: - kv  18:                 dflash.feed_forward_length u32              = 17408
+llama_model_loader: - kv  19:                dflash.attention.head_count u32              = 32
+llama_model_loader: - kv  20:             dflash.attention.head_count_kv u32              = 8
+llama_model_loader: - kv  21:                    dflash.attention.causal bool             = false
+llama_model_loader: - kv  22:                      dflash.rope.freq_base f32              = 10000000.000000
+llama_model_loader: - kv  23:    dflash.attention.layer_norm_rms_epsilon f32              = 0.000001
+llama_model_loader: - kv  24:                dflash.attention.key_length u32              = 128
+llama_model_loader: - kv  25:              dflash.attention.value_length u32              = 128
+llama_model_loader: - kv  26:                          dflash.block_size u32              = 8
+llama_model_loader: - kv  27:                    dflash.conv_kernel_size u32              = 2
+llama_model_loader: - kv  28:                     dflash.conv_group_size u32              = 16
+llama_model_loader: - kv  29:                       dflash.selector_rank u32              = 256
+llama_model_loader: - kv  30:                      dflash.selector_top_k u32              = 16
+llama_model_loader: - kv  31:                       dflash.target_layers arr[i32,5]       = [6, 20, 34, 48, 62]
+llama_model_loader: - kv  32:            dflash.attention.sliding_window u32              = 2048
+llama_model_loader: - kv  33:    dflash.attention.sliding_window_pattern arr[bool,5]      = [true, true, true, true, true]
+llama_model_loader: - kv  34:               general.quantization_version u32              = 2
+llama_model_loader: - kv  35:                          general.file_type u32              = 15
+llama_model_loader: - kv  36:             dflash.rope.dimension_sections arr[i32,4]       = [64, 0, 0, 0]
+llama_model_loader: - kv  37:                       tokenizer.ggml.model str              = gpt2
+llama_model_loader: - kv  38:                         tokenizer.ggml.pre str              = qwen35
+llama_model_loader: - kv  39:                      tokenizer.ggml.tokens arr[str,130020]  = ["!", "\"", "#", "$", "%", "&", "'", ...
+llama_model_loader: - kv  40:                  tokenizer.ggml.token_type arr[i32,130020]  = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...
+llama_model_loader: - kv  41:                      tokenizer.ggml.merges arr[str,129463]  = ["Ġ Ġ", "ĠĠ ĠĠ", "i n", "Ġ t",...
+llama_model_loader: - kv  42:                tokenizer.ggml.eos_token_id u32              = 129746
+llama_model_loader: - kv  43:            tokenizer.ggml.padding_token_id u32              = 129744
+llama_model_loader: - kv  44:                tokenizer.ggml.bos_token_id u32              = 129744
+llama_model_loader: - kv  45:               tokenizer.ggml.add_bos_token bool             = false
+llama_model_loader: - kv  46:                    tokenizer.chat_template str              = {%- set image_count = namespace(value...
+llama_model_loader: - kv  47:               tokenizer.ggml.mask_token_id u32              = 129770
+llama_model_loader: - type  f32:   32 tensors
+llama_model_loader: - type q4_K:   45 tensors
+llama_model_loader: - type q6_K:    4 tensors
+print_info: file format = GGUF V3 (latest)
+print_info: file type   = Q4_K - Medium
+print_info: file size   = 1.02 GiB (4.71 BPW) 
+llama_prepare_model_devices: using device CUDA0 (NVIDIA GeForce RTX 4060 Ti) (0000:01:00.0) - 3742 MiB free
+init_tokenizer: initializing tokenizer for type 2
+load: 0 unused tokens
+load: control token: 129776 '<|audio_pad|>' is not marked as EOG
+load: control token: 129770 '<|audio_start|>' is not marked as EOG
+load: control token: 129761 '<|fim_middle|>' is not marked as EOG
+load: control token: 129760 '<|fim_prefix|>' is not marked as EOG
+load: control token: 129756 '<|image_pad|>' is not marked as EOG
+load: control token: 129754 '<|vision_end|>' is not marked as EOG
+load: control token: 129752 '<|quad_end|>' is not marked as EOG
+load: control token: 129750 '<|box_end|>' is not marked as EOG
+load: control token: 129747 '<|object_ref_start|>' is not marked as EOG
+load: control token: 129775 '<tts_text_bos_single>' is not marked as EOG
+load: control token: 129749 '<|box_start|>' is not marked as EOG
+load: control token: 129774 '<tts_text_eod>' is not marked as EOG
+load: control token: 129748 '<|object_ref_end|>' is not marked as EOG
+load: control token: 129771 '<|audio_end|>' is not marked as EOG
+load: control token: 129773 '<tts_text_bos>' is not marked as EOG
+load: control token: 129753 '<|vision_start|>' is not marked as EOG
+load: control token: 129755 '<|vision_pad|>' is not marked as EOG
+load: control token: 129772 '<tts_pad>' is not marked as EOG
+load: control token: 129757 '<|video_pad|>' is not marked as EOG
+load: control token: 129745 '<|im_start|>' is not marked as EOG
+load: control token: 129762 '<|fim_suffix|>' is not marked as EOG
+load: control token: 129751 '<|quad_start|>' is not marked as EOG
+load: printing all EOG tokens:
+load:   - 129744 ('<|endoftext|>')
+load:   - 129746 ('<|im_end|>')
+load:   - 129763 ('<|fim_pad|>')
+load:   - 129764 ('<|repo_name|>')
+load:   - 129765 ('<|file_sep|>')
+load: special tokens cache size = 33
+load: token to piece cache size = 0.8166 MB
+print_info: arch                  = dflash
+print_info: vocab_only            = 1
+print_info: no_alloc              = 0
+print_info: vocab type            = BPE
+print_info: n_vocab               = 130020
+print_info: n_merges              = 129463
+print_info: BOS token             = 129744 '<|endoftext|>'
+print_info: EOS token             = 129746 '<|im_end|>'
+print_info: EOT token             = 129746 '<|im_end|>'
+print_info: PAD token             = 129744 '<|endoftext|>'
+print_info: MASK token            = 129770 '<|audio_start|>'
+print_info: LF token              = 198 'Ċ'
+print_info: FIM PRE token         = 129760 '<|fim_prefix|>'
+print_info: FIM SUF token         = 129762 '<|fim_suffix|>'
+print_info: FIM MID token         = 129761 '<|fim_middle|>'
+print_info: FIM PAD token         = 129763 '<|fim_pad|>'
+print_info: FIM REP token         = 129764 '<|repo_name|>'
+print_info: FIM SEP token         = 129765 '<|file_sep|>'
+print_info: EOG token             = 129744 '<|endoftext|>'
+print_info: EOG token             = 129746 '<|im_end|>'
+print_info: EOG token             = 129763 '<|fim_pad|>'
+print_info: EOG token             = 129764 '<|repo_name|>'
+print_info: EOG token             = 129765 '<|file_sep|>'
+print_info: max token length      = 256
+llama_model_load: vocab only - skipping tensors
+[mk-dflash-native] CUDA-only draft 1.094 GiB allocations; sliding KV FP16 2056 rows; graphs on; math DP4A/Q8
+[mk] runtime VRAM: 11.789 GiB engine allocations, 13.959 GiB device used, 1.696 GiB free
+[mk-profile] 14 decode launches, mean 71.026 ms in barriers-to-barrier phases
+  embed            total/launch    0.013 ms   per call    12.51 us   calls/launch    1.0
+  attn_proj        total/launch    3.591 ms   per call   224.42 us   calls/launch   16.0
+  attn_core        total/launch    5.724 ms   per call   357.74 us   calls/launch   16.0
+  attn_comb        total/launch    0.142 ms   per call     8.86 us   calls/launch   16.0
+  resid_o          total/launch    1.523 ms   per call    95.18 us   calls/launch   16.0
+  dn_proj          total/launch   10.721 ms   per call   223.35 us   calls/launch   48.0
+  dn_core          total/launch    2.304 ms   per call    48.01 us   calls/launch   48.0
+  resid_sout       total/launch    4.481 ms   per call    93.35 us   calls/launch   48.0
+  ffn_gu           total/launch   23.762 ms   per call   371.28 us   calls/launch   64.0
+  ffn_down         total/launch   17.358 ms   per call   271.21 us   calls/launch   64.0
+  lm_head          total/launch    1.409 ms   per call  1408.51 us   calls/launch    1.0
+[mk-profile] block arrival at barrier (us after phase start; mean over launches): first / median / last
+  embed                1.02     1.02    11.78
+  attn_proj          216.06   219.51   222.86
+  attn_core            1.32   354.45   357.10
+  attn_comb            5.69     7.82     8.20
+  resid_o             78.61    92.59    94.61
+  dn_proj            197.07   204.76   217.44
+  dn_core             26.70    29.11    47.36
+  resid_sout          76.53    90.64    92.69
+  ffn_gu             359.20   365.17   370.48
+  ffn_down           220.20   267.31   270.44
+  lm_head           1369.01  1377.43  1407.85
+[mk-profile] T=8 min-composed launch 69.885 ms (interference-free estimate)
+  embed               0.012 ms     12.29 us/call (fill  0.00 us)  x1
+  attn_proj           3.533 ms    220.80 us/call (fill  6.91 us)  x16
+  attn_core           5.578 ms    348.61 us/call (fill  0.00 us)  x16
+  attn_comb           0.132 ms      8.26 us/call (fill  0.00 us)  x16
+  resid_o             1.499 ms     93.70 us/call (fill  6.53 us)  x16
+  dn_proj            10.592 ms    220.67 us/call (fill  7.81 us)  x48
+  dn_core             2.081 ms     43.35 us/call (fill  0.00 us)  x48
+  resid_sout          4.405 ms     91.78 us/call (fill  5.82 us)  x48
+  ffn_gu             23.556 ms    368.06 us/call (fill  4.86 us)  x64
+  ffn_down           17.092 ms    267.06 us/call (fill  0.00 us)  x64
+  lm_head             1.405 ms   1404.93 us/call (fill 31.74 us)  x1

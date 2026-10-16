@@ -1,0 +1,29 @@
+short_code 7 0 87.86410627215338 canonical prefix None
+short_code 7 1 87.88584903416898 canonical prefix None
+short_code 7 2 87.80160280965129 canonical prefix None
+long_code 7 0 81.87076298735178 canonical prefix None
+long_code 7 1 81.81743802329069 canonical prefix None
+long_code 7 2 81.79825278932041 canonical prefix None
+numbered_lines 7 0 40.32868989325075 canonical prefix None
+numbered_lines 7 1 40.32913636182479 canonical prefix None
+numbered_lines 7 2 40.279218703205025 canonical prefix None
+[
+  {
+    "case": "short_code",
+    "draft": 7,
+    "tps": 87.85051937199121,
+    "all_canonical_ids_equal": null
+  },
+  {
+    "case": "long_code",
+    "draft": 7,
+    "tps": 81.82881793332096,
+    "all_canonical_ids_equal": null
+  },
+  {
+    "case": "numbered_lines",
+    "draft": 7,
+    "tps": 40.31234831942685,
+    "all_canonical_ids_equal": null
+  }
+]

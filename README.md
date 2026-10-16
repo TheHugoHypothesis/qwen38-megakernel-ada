@@ -33,7 +33,7 @@ For a plain-language explanation of autoregressive inference, the megakernel, De
 | Target | [`ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF`](https://huggingface.co/ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF) · `Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf`; non-uniform mixed precision, 3.55 BPW, about 11.28 GiB |
 | Draft | Separate Qwen3.8-27B DFlash2 `Q4_K_M` GGUF; about 1.05 GiB on disk, 5 draft blocks |
 | Target KV | Q8_0 or custom experimental signed Q4; DFlash2's sliding cache remains FP16 |
-| Tested context | Original target: 72,000 capacity, speed sweep through 32,768 populated tokens. Condensed target: 96,000 capacity with native DFlash2/Q4, HTTP prompts through 2,791 tokens. |
+| Tested context | Original target: 72K capacity, speed sweep through 32,768 populated tokens. Base condensed: 96K capacity, HTTP prompts through 2,791 tokens. Swift IQ3_S: 72K capacity; Swift condensed: 96K capacity. Both Swift variants retrieved a secret at 35,330 populated tokens. Capacity tests use native DFlash2/Q4. |
 
 **Quantization distinction:** the target is the ISTA-DASLab **GSQ-RCO mixed-precision model**, not the standard Qwen3.8-27B `Q4_K_M` target. The file comes from the [`models--ISTA-DASLab--Qwen3.8-27B-GSQ-RCO-GGUF` model repository](https://huggingface.co/ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF). Its `IQ3_S` file-type label is an overall label; the 866 tensors use multiple formats, including IQ3_S, IQ3_XXS, IQ4_XS, IQ2 variants, Q2_K, Q4_K, Q6_K, F32, and BF16. GSQ-RCO uses non-uniform precision allocation designed to retain more quality at a low average bit rate. The megakernel loads these target tensors in their original formats and does not requantize target weights.
 
@@ -94,7 +94,7 @@ make -C megakernel LLAMA=../llama.cpp ARCH=89 all qwen38_dflash
 
 ## Run the Ada port
 
-Use the launcher with explicit model paths. `--engine megakernel-dflash2` selects the full megakernel target plus native DFlash2; `--engine megakernel` uses the megakernel's built-in MTP path; `--engine dflash2` and `--engine mtp` launch llama.cpp baselines.
+Use the launcher with explicit model paths. `--engine megakernel-dflash2` selects the full megakernel target plus native DFlash2; `--engine megakernel` uses built-in MTP when present and ordinary decoding for a target without MTP; `--engine dflash2` and `--engine mtp` launch llama.cpp baselines.
 
 ```bash
 python3 port_ada.py \
@@ -117,6 +117,52 @@ The code includes CUDA unit tests and external-verification tools under [`megake
 ## Provenance and license
 
 
+### Swift 1.5 GSQ-RCO
+
+The [UkisAI Swift 1.5 IQ3_S release](https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-27B-GSQ-RCO-GGUF) uses the same supported tensor layout, quantization formats, tokenizer and chat template. The standard file has **851 tensors and no MTP head**; it can use the existing original-vocabulary DFlash2 draft without remapping:
+
+```bash
+python3 port_ada.py --engine megakernel-dflash2 \
+  --model /path/to/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S.gguf \
+  --draft-model /path/to/Qwen3.8-27B-DFlash2-Q4_K_M.gguf \
+  --llama-root /path/to/llama.cpp \
+  --ctx 72000 --draft 7 --kv q4 --prefill-chunk 128
+```
+
+For ordinary MK use `--engine megakernel`; the launcher automatically selects zero drafts for this file. Q8/Q4 KV, chunked prefill, prefix reuse, streaming, tools and reasoning controls retain the existing implementation. The base Qwen DFlash2 draft was not retrained for Swift; measured acceptance matters. Swift's model-card task speedups are separate from our CUDA throughput. The weights use **Swift Open License v1.0**, separately from this runtime's license. See [Swift implementation and validation](megakernel/bench/dflash-port/28-SWIFT-1.5.md).
+
+Sixteen HTTP/CUDA checks passed at **72K Q4 capacity**, including tools and reasoning, with a successful retrieval from **35,330 populated tokens**. Coding fixtures measured about **85–88 tok/s**, while numbered text measured **38 tok/s** at 4K/Q8. Seven of nine greedy fixtures matched ordinary MK exactly; two coding fixtures chose different valid docstring examples. These are serving and workload measurements, not a broad quality evaluation or a full-72K quality guarantee.
+
+### Swift ASCII-condensed variant
+
+[`tools/condense_target.py`](megakernel/tools/condense_target.py) applies the earlier verified 130,020-token subset to Swift's own quantized embedding/head rows and copies all 849 other Swift tensors unchanged. Use the earlier prepared condensed target/draft as references; see [the pinned reproduction command](megakernel/bench/dflash-port/29-SWIFT-ASCII-CONDENSED.md#reproduce). The tool writes a matching draft copy, token mapping and verified manifest. No requantization or draft retraining occurs.
+
+```bash
+python3 port_ada.py --engine megakernel-dflash2 \
+  --model /path/to/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf \
+  --draft-model /path/to/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf \
+  --llama-root /path/to/llama.cpp \
+  --ctx 96000 --draft 7 --kv q4 --prefill-chunk 128
+```
+
+The target saves **510 MiB of vocabulary weight VRAM** and is **10.46 GiB on disk**. Sixteen HTTP/CUDA checks passed at **96K/Q4 capacity**, with **0.71 GiB free** and successful retrieval at **35,330 populated tokens**. Pruning changes quality: eight of nine fixture texts matched full Swift, but the condensed target copied `café` as `cafÿ` in both MK and llama.cpp. Non-ASCII output remains possible through fallback; full-96K quality is untested. The draft is the earlier condensed Qwen DFlash2, not a Swift-trained draft. See [checksums, measurements and limits](megakernel/bench/dflash-port/29-SWIFT-ASCII-CONDENSED.md).
+
+### Measured Ada kernel work
+
+The [Ada optimization record](megakernel/bench/dflash-port/30-ADA-PRIORITIES-AND-T4.md) and [follow-up precision/agent-context study](megakernel/bench/dflash-port/31-T4-PRECISION-T8-AND-AGENT-CONTEXT.md) audit the persistent kernel and device limits, record an FFN-dominated profile, and evaluate ordered IQ gate/up fusion for four verification positions plus direct header-sharing IQ2 decoding (`MK_IQ2_DIRECT=1`). Optional `--verify-width 3|auto` experiments keep the full noncausal DFlash block and shorten only target verification; existing launch commands retain full-width verification.
+
+Tracing all 64 layer inputs localized the earlier token-164 T4 divergence to layer 5's IQ2_S up-projection, where the generic path rounded the scale multiply and accumulation separately while the fused helper contracted them into an FMA. Adding explicit round-to-nearest boundaries (`__fadd_rn` / `__fmul_rn`) for T4 makes all 64 FFN gate/up phase outputs and all 313 × 64 full-model layer inputs bit-identical to the legacy path. Exhaustive testing across 190,045,440 16-value fragments in all 31 IQ2 tensors also verified exact bit-parity for the shared-header IQ2 decoder.
+
+Across three alternating repetitions at 256 tokens (4,096/Q8), the updated seven-proposal path (`full7`) gained **0.80%–0.85%** (`93.41`, `90.18`, and `40.44 tok/s`), and corrected fused T4 (`fused3`) gained **4.62%, 4.56%, and 4.65%** over legacy T4 (`depth3`) with **identical cycle counts and 100% identical output token IDs on all three fixtures**.
+
+![Ada verification comparison](megakernel/bench/ada-deep/comparison/ada-verification.png)
+
+Populated agent/tool conversations (`8,215` to `33,668` tokens at 40,000/Q4 capacity) show target attention scaling from **3.02 ms (4.4%)** to **11.06 ms (14.5%)**, while FFN work remains **53.9%–60.2%** of target time (~41.0 ms/launch). Draft acceptance is 51.0%–60.7% on these agent requests, and full seven-proposal verification (`50.65–65.69 tok/s`, `4.43–5.25` new tokens/cycle) remains faster than three-proposal prefix verification (`47.36–51.39 tok/s`, `3.23–3.50` new tokens/cycle) with identical output IDs.
+
+![Populated agent context throughput and acceptance](megakernel/bench/ada-deep/agent/plots/agent-context.png)
+
+The context evaluator reads the target's remapped EOS ID and rejects incompatible tokenizers and out-of-range prompt IDs. For Swift condensed, supply prompt IDs produced by that exact tokenizer; the bundled original-vocabulary prompt is unsuitable.
+
 ## What this work adds beyond Open-Jet
 
 Open-Jet provides the original Qwen3.8 CUDA megakernel and the foundation for this port. The following are the Ada adaptation and additional work in this repository snapshot; they should not be attributed to the upstream Open-Jet project unless separately merged there:
@@ -127,6 +173,8 @@ Open-Jet provides the original Qwen3.8 CUDA megakernel and the foundation for th
 - **Speculative verification and state handling:** T=8 verification for up to seven proposals, rejection/replay coverage, shared target embedding/output storage, and server-side checkpoint/reset/rewind/truncation support.
 - **Ada-oriented kernel work:** packed mixed-IQ readers, DP4A paths, paired-row FFN processing, typed Q4_K/Q6_K draft MMQ, and the associated CPU/GPU oracles. Slower IMMA and pipeline candidates are retained as experiments or documented as rejected rather than presented as wins.
 - **ASCII-condensed model support:** a byte-preserving MTP-free export tool and DFlash2 selector/token-ID remapping for the PlinyTheMedium derivative. Vocabulary pruning itself is credited to that release and the bsaleh03 pruning tools.
+- **Swift 1.5 target integration:** verified GSQ-RCO trunk/tokenizer compatibility, variant-aware MTP defaults in the launcher and direct server, and reproducible native-draft acceptance/output comparisons. Swift's post-training and quantization are credited to UkisAI; the existing Qwen DFlash2 draft is reused.
+- **Swift vocabulary condensation:** an exhaustive byte-preserving export that reuses the earlier verified retained vocabulary with Swift's own weights and compatible condensed draft. The export preserves Swift attribution and license metadata; P1G vocabulary pruning is credited to the earlier release and tools.
 - **Memory and serving adaptations:** optional packed symmetric Q4 target KV to reduce cache capacity cost, Q8 as the default, VRAM preflight/runtime reporting, an Ada launcher, and Open-Jet/HTTP/C API integration. Q4 KV is lossy and is independent of target weight quantization.
 - **Validation and performance records:** RTX 4060 Ti benchmarks at stock clocks, context-scaling tools, output and verifier checks, API compatibility changes for Unsloth sampling/reasoning fields, and implementation journals. The recorded measurements show a small short-prompt advantage over the local llama.cpp/DFlash2 baseline but no demonstrated general throughput win; see the limitations and exact conditions in the benchmark notes.
 

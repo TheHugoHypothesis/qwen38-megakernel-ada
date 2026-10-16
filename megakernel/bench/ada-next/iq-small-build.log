@@ -1,0 +1,2 @@
+/usr/local/cuda/bin/nvcc -O3 -std=c++17 -arch=sm_89 -I../../llama.cpp/ggml/include -I../../llama.cpp/ggml/src tests/iq_small.cu \
+	-L../../llama.cpp/build/bin -lggml-base -Xlinker -rpath -Xlinker '$ORIGIN/../../llama.cpp/build/bin' -o iq_small_test

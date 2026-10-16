@@ -1,5 +1,6 @@
 #include "dflash_bridge.h"
 #include "dflash_native.h"
+#include "dflash_verify_policy.h"
 #include "gguf.h"
 #include "llama.h"
 #include <cuda_runtime.h>
@@ -18,7 +19,7 @@
 int main(int argc,char ** argv) {
     try {
         std::string model,draft,chunk="auto",backend="native";
-        bool oracle=false;
+        bool oracle=false, warmup=true;
         std::vector<std::string> prompt_files;
         int count=128,depth=7,ctx=4096,reps=1,kv_mode=1;
         float temp=0;
@@ -28,6 +29,7 @@ int main(int argc,char ** argv) {
             auto next=[&]() -> std::string { if (++i>=argc) throw std::runtime_error("missing argument value");return argv[i]; };
             if (arg=="-m") model=next();else if (arg=="--draft-model") draft=next();
             else if(arg=="--backend")backend=next();else if(arg=="--oracle")oracle=true;
+            else if(arg=="--no-warmup")warmup=false;
             else if (arg=="--prompt-ids") prompt_files.push_back(next());else if (arg=="--prefill-chunk") chunk=next();
             else if (arg=="-n") count=std::stoi(next());else if (arg=="-d") depth=std::stoi(next());
             else if (arg=="-c") ctx=std::stoi(next());else if (arg=="--reps") reps=std::stoi(next());
@@ -37,7 +39,7 @@ int main(int argc,char ** argv) {
                 kv_mode=k=="f16"?0:k=="q8"?1:k=="q4"?2:-1;
             }
             else if (arg=="--temp") temp=std::stof(next());else if (arg=="--seed") seed=std::stoull(next());
-            else throw std::runtime_error("usage: qwen38_dflash -m target --draft-model draft --prompt-ids ids [-n 128] [-d 7] [-c 4096] [--reps 1] [--backend native|ggml] [--oracle] [--temp 0] [--seed 123] [--prefill-chunk auto] [--kv q8|q4|f16|auto]");
+            else throw std::runtime_error("usage: qwen38_dflash -m target --draft-model draft --prompt-ids ids [-n 128] [-d 7] [-c 4096] [--reps 1] [--no-warmup] [--backend native|ggml] [--oracle] [--temp 0] [--seed 123] [--prefill-chunk auto] [--kv q8|q4|f16|auto]");
         }
         if (model.empty() || draft.empty() || prompt_files.empty() || count<1 || depth<1 || depth>7 || reps<1)
             throw std::runtime_error("target, draft, prompt IDs and valid generation parameters are required");
@@ -85,11 +87,14 @@ int main(int argc,char ** argv) {
         auto injection=[&](){return native?native->injection_seconds:bridge->injection_seconds;};
         auto drafting=[&](){return native?native->draft_seconds:bridge->draft_seconds;};
         target.set_sampling(temp,.95f,20,0,seed);
+        if(oracle&&DFlashVerifyPolicy::environment()&&std::string(DFlashVerifyPolicy::environment())!="full")
+            throw std::runtime_error("draft oracle requires full verification policy");
         using Clock=std::chrono::steady_clock;
         auto elapsed=[](Clock::time_point t){return std::chrono::duration<double>(Clock::now()-t).count();};
         for (size_t case_index=0;case_index<prompts.size();case_index++) {
-          for (int rep=-1;rep<reps;rep++) {
+          for (int rep=warmup?-1:0;rep<reps;rep++) {
             target.reset();if(native)native->reset();if(bridge)bridge->reset();
+            DFlashVerifyPolicy policy(depth,DFlashVerifyPolicy::environment());
             const auto pf=Clock::now();
             std::vector<int> ids{target.prefill(prompts[case_index])};
             const double prefill=elapsed(pf),inject_prefill=injection();
@@ -99,7 +104,8 @@ int main(int argc,char ** argv) {
             const int limit=rep<0?16:count;
             while (int(ids.size())<limit && !llama_vocab_is_eog(vocab,ids.back())) {
                 const bool budget=!std::getenv("MK_DFLASH_BUDGET")||std::strcmp(std::getenv("MK_DFLASH_BUDGET"),"0");
-                const int needed=budget?std::min(depth,limit-int(ids.size())-1):depth;
+                const int width=policy.width();
+                const int needed=budget?std::min(width,limit-int(ids.size())-1):width;
                 std::vector<int> proposals;
                 if(needed || !native) proposals=native?native->draft(target.position(),ids.back(),depth):bridge->draft(target.position(),ids.back(),depth);
                 if(oracle && needed) {
@@ -128,7 +134,9 @@ int main(int argc,char ** argv) {
                 proposals.resize(needed);
                 const auto verify=Clock::now();
                 std::vector<int> out;
+                const long before=target.stats.accepted;
                 target.verify_external(proposals,out);
+                if(needed==width)policy.observe(width,int(target.stats.accepted-before));
                 verify_s+=elapsed(verify);
                 for (int tok:out) {
                     if (int(ids.size())>=limit) break;
@@ -152,6 +160,7 @@ int main(int argc,char ** argv) {
             printf("RESULT {\"case_index\":%zu,\"rep\":%d,\"tokens\":%zu,\"decode_seconds\":%.9f,\"tps\":%.6f,\"prefill_seconds\":%.9f,\"draft_seconds\":%.9f,\"verify_with_injection_seconds\":%.9f,\"injection_decode_seconds\":%.9f,\"injection_prefill_seconds\":%.9f,\"native_injection_prefill_gpu_seconds\":%.9f,\"native_injection_decode_gpu_seconds\":%.9f,\"cycles\":%ld,\"drafted\":%ld,\"accepted\":%ld}\n",
                    case_index,rep,ids.size(),decode,decode>0?(ids.size()-1)/decode:0,prefill,drafting(),verify_s,
                    injection()-inject_prefill,inject_prefill,injection_gpu_prefill,native?native->injection_gpu_seconds-injection_gpu_prefill:0,target.stats.cycles,target.stats.drafted,target.stats.accepted);
+            printf("VERIFY_POLICY {\"three_cycles\":%ld,\"full_cycles\":%ld}\n",policy.three_cycles,policy.full_cycles);
             fflush(stdout);
           }
         }

@@ -1,0 +1,31 @@
+{
+  "engine": "megakernel-dflash2",
+  "target": {
+    "name": "Swift 1.5 ASCII Condensed (no MTP)",
+    "vocabulary": 130020,
+    "mtp_layers": 0,
+    "model_context": 262144
+  },
+  "command": [
+    "/usr/bin/python3",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/open-jet/megakernel/server/mk_server.py",
+    "--model",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+    "--lib",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/open-jet/megakernel/libqwen38mk.so",
+    "--ctx",
+    "96000",
+    "--draft",
+    "7",
+    "--kv",
+    "q4",
+    "--prefill-chunk",
+    "128",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8080",
+    "--draft-model",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf"
+  ]
+}

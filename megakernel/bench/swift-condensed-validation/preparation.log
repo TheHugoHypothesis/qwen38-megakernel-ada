@@ -1,0 +1,50 @@
+PASS vocab=248320 tensors=851 main_device_weight_bytes=11807737856 all_device_weight_bytes=11807737856
+Gathering 130,020 of 248,320 vocabulary rows; copying the source trunk
+Checking every retained embedding/output row and all non-vocabulary tensors against the source
+PASS vocab=130020 tensors=851 main_device_weight_bytes=11273021856 all_device_weight_bytes=11273021856
+{
+  "operation": "reuse_verified_vocabulary_subset",
+  "sources": {
+    "target": {
+      "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S.gguf",
+      "sha256": "1333c6ea70ef348d4ac6d62732772e8ad6571ac5b3754c14ed54f1a0d904a786",
+      "bytes": 11771546912
+    },
+    "vocabulary_reference": {
+      "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+      "sha256": "6a1cce42ad0abc0b4ca00610ba761a746299af18ab5b4effc7df822c9b755a99",
+      "bytes": 11230505920
+    },
+    "condensed_draft": {
+      "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf",
+      "sha256": "3b611e28dd72af6ced025ed2410927557304245ed244f6ddc14151ab061ccd96",
+      "bytes": 1102611520
+    }
+  },
+  "target": {
+    "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+    "sha256": "288a9a35ac8de49f3dc506dbd820c6213129248d519a3b51c4402c412f16f7a3",
+    "bytes": 11230506048,
+    "tensor_count": 851,
+    "removed_tensors": []
+  },
+  "draft": {
+    "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf",
+    "sha256": "3b611e28dd72af6ced025ed2410927557304245ed244f6ddc14151ab061ccd96",
+    "bytes": 1102611520
+  },
+  "original_vocab": 248320,
+  "new_vocab": 130020,
+  "mask_token_id": 129770,
+  "mtp_layers": 0,
+  "mtp_payload_removed_bytes": 0,
+  "target_vocab_weight_saving_bytes": 534716000,
+  "file_saving_bytes": 541040864,
+  "untouched_non_vocabulary_tensors": 849,
+  "retained_rows_verified_per_vocab_tensor": 130020,
+  "all_tensor_types_unchanged": true,
+  "all_other_source_metadata_preserved": true,
+  "no_requantization_or_finetuning": true,
+  "draft_retrained_for_source": false,
+  "quality_note": "Pruning changes tokenization and the target distribution; quality must be measured separately."
+}

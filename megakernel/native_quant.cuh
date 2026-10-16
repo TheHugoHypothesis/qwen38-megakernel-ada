@@ -198,6 +198,35 @@ __device__ __forceinline__ Quant8 quant8(int type, const uint8_t * row, int e, c
     return {make_int2(int(a), int(b)), d, offset};
 }
 
+// Decode the common IQ2 header/scale once for two adjacent eight-value grids.
+template<int TYPE>
+__device__ __forceinline__ Quant16 iq2_direct16(const uint8_t * row,int e) {
+    static_assert(TYPE==16||TYPE==17||TYPE==22,"IQ2 format");
+    const int j=(e&255)/32,il=(e&31)/8;
+    const uint8_t * grids[2];unsigned signs[2];float d;
+    if constexpr(TYPE==16){
+        const auto & x=reinterpret_cast<const block_iq2_xxs *>(row)[e/256];const uint16_t * q=x.qs+4*j;
+        const unsigned aux=unsigned(__ldg(q+2))|(unsigned(__ldg(q+3))<<16);
+        d=__half2float(__ldg(&x.d))*(.5f+(aux>>28))*.25f;
+        #pragma unroll
+        for(int h=0;h<2;h++){grids[h]=reinterpret_cast<const uint8_t *>(iq2xxs_grid+__ldg(reinterpret_cast<const uint8_t *>(q)+il+h));signs[h]=__ldg(ksigns_iq2xs+((aux>>(7*(il+h)))&127));}
+    }else if constexpr(TYPE==17){
+        const auto & x=reinterpret_cast<const block_iq2_xs *>(row)[e/256];
+        d=__half2float(__ldg(&x.d))*(.5f+((__ldg(x.scales+j)>>(4*(il/2)))&15))*.25f;
+        #pragma unroll
+        for(int h=0;h<2;h++){const unsigned q=__ldg(x.qs+4*j+il+h);grids[h]=reinterpret_cast<const uint8_t *>(iq2xs_grid+(q&511));signs[h]=__ldg(ksigns_iq2xs+(q>>9));}
+    }else{
+        const auto & x=reinterpret_cast<const block_iq2_s *>(row)[e/256];const unsigned high=__ldg(x.qh+j);
+        d=__half2float(__ldg(&x.d))*(.5f+((__ldg(x.scales+j)>>(4*(il/2)))&15))*.25f;
+        #pragma unroll
+        for(int h=0;h<2;h++){grids[h]=reinterpret_cast<const uint8_t *>(iq2s_grid+(__ldg(x.qs+4*j+il+h)|((high<<(8-2*(il+h)))&768)));signs[h]=__ldg(x.qs+32+4*j+il+h);}
+    }
+    int2 q[2];
+    #pragma unroll
+    for(int h=0;h<2;h++){auto p=reinterpret_cast<const unsigned *>(grids[h]);q[h]=signed_grid(__ldg(p),__ldg(p+1),signs[h]);}
+    return {make_int4(q[0].x,q[0].y,q[1].x,q[1].y),d};
+}
+
 // Six offset-free IQ formats have one scale for each 16-value fragment.
 // IQ2 joins two original Quant8 payloads; its scale is shared by both halves.
 template<int TYPE>
@@ -205,8 +234,12 @@ __device__ __forceinline__ Quant16 native_iq16(const uint8_t * row, int e) {
     if constexpr (TYPE == 18 || TYPE == 21 || TYPE == 23) return quant16<TYPE>(row, e);
     else {
         static_assert(TYPE == 16 || TYPE == 17 || TYPE == 22, "offset-free IQ16 format");
+#if defined(MK_IQ2_DIRECT) && MK_IQ2_DIRECT
+        return iq2_direct16<TYPE>(row,e);
+#else
         const Quant8 a = quant8(TYPE, row, e), b = quant8(TYPE, row, e + 8);
         return {make_int4(a.q.x, a.q.y, b.q.x, b.q.y), a.d};
+#endif
     }
 }
 

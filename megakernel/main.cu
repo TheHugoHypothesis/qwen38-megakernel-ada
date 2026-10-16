@@ -11,6 +11,7 @@
 
 #include "llama.h"
 #include "qwen38_mk.h"
+#include "model_spec.h"
 
 static void usage() {
     fprintf(stderr,
@@ -29,6 +30,7 @@ int main(int argc, char ** argv) {
     std::string model, prompt = "Write a Python function that checks whether a number is prime.";
     std::string draft_vocab;
     int n_predict = 256, n_draft = 4, ctx = 8192;
+    bool draft_explicit = false;
     bool raw = false, print_ids = false, quiet = false, bench_phases = false;
     std::string score_file; // file with whitespace-separated continuation token ids to teacher-force
     int score_probe=-1;
@@ -46,7 +48,7 @@ int main(int argc, char ** argv) {
         else if (a == "-p") prompt = next();
         else if (a == "-f") { std::ifstream f(next()); std::stringstream ss; ss << f.rdbuf(); prompt = ss.str(); }
         else if (a == "-n") n_predict = atoi(next().c_str());
-        else if (a == "-d") n_draft = atoi(next().c_str());
+        else if (a == "-d") { n_draft = atoi(next().c_str()); draft_explicit = true; }
         else if (a == "-c") ctx = atoi(next().c_str());
         else if (a == "--prefill-chunk") { const auto v=next(); setenv("MK_PREFILL_CHUNK",v.c_str(),1); }
         else if (a == "--draft-vocab") draft_vocab = next();
@@ -70,6 +72,12 @@ int main(int argc, char ** argv) {
         else usage();
     }
     if (model.empty()) usage();
+    if (!draft_explicit) {
+        gguf::File file(model);
+        gguf::validate_qwen38(file, false);
+        const auto mtp = file.ints.find("qwen35.nextn_predict_layers");
+        n_draft = mtp != file.ints.end() && mtp->second ? 4 : 0;
+    }
 
     llama_backend_init();
     llama_model_params mp = llama_model_default_params();

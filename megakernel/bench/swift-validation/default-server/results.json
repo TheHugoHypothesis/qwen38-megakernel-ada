@@ -1,0 +1,48 @@
+{
+  "command": [
+    "/usr/bin/python3",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/open-jet/megakernel/server/mk_server.py",
+    "-m",
+    "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S.gguf",
+    "--ctx",
+    "4096",
+    "--kv",
+    "q8",
+    "--prefill-chunk",
+    "128",
+    "--port",
+    "18109"
+  ],
+  "auto_draft": 0,
+  "response": {
+    "id": "chatcmpl-7ddbf88760af4b03894e297e19754291",
+    "object": "chat.completion",
+    "created": 1791838079,
+    "model": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S.gguf",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "45"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 28,
+      "completion_tokens": 3,
+      "total_tokens": 31,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      }
+    },
+    "timings": {
+      "prompt_n": 28,
+      "prompt_ms": 521.1937427520752,
+      "predicted_n": 3,
+      "predicted_ms": 109.63582992553711,
+      "predicted_per_second": 27.363317284482196
+    }
+  }
+}

@@ -1,0 +1,211 @@
+tests/../qwen38_mk.cu(740): warning #128-D: loop is not reachable
+      for (int k = 0; k < R; k++) {
+      ^
+          detected during:
+            instantiation of "void <unnamed>::mrows<T,IT,R,TYPE>(const <unnamed>::Mat &, int, const <unnamed>::SX &, float (&)[R][T], int) [with T=4, IT=5, R=1, TYPE=-1]" at line 1074
+            instantiation of "void <unnamed>::ffn_gu<T>(const <unnamed>::LayerW &, uint8_t *) [with T=4]" at line 24 of tests/ffn_phases.cu
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+tests/../qwen38_mk.cu(740): warning #128-D: loop is not reachable
+      for (int k = 0; k < R; k++) {
+      ^
+          detected during:
+            instantiation of "void <unnamed>::mrows<T,IT,R,TYPE>(const <unnamed>::Mat &, int, const <unnamed>::SX &, float (&)[R][T], int) [with T=8, IT=17, R=2, TYPE=-1]" at line 899
+            instantiation of "void <unnamed>::resid32<T,IT,TYPE>(<unnamed>::Mat, <unnamed>::QBuf, float *, __nv_bool, const float *, uint8_t *) [with T=8, IT=17, TYPE=-1]" at line 25 of tests/ffn_phases.cu
+
+tests/../qwen38_mk.cu(740): warning #128-D: loop is not reachable
+      for (int k = 0; k < R; k++) {
+      ^
+          detected during instantiation of "void <unnamed>::mrows<T,IT,R,TYPE>(const <unnamed>::Mat &, int, const <unnamed>::SX &, float (&)[R][T], int) [with T=8, IT=8, R=2, TYPE=-1]" at line 47 of tests/ffn_phases.cu
+
+tests/../qwen38_mk.cu(740): warning #128-D: loop is not reachable
+      for (int k = 0; k < R; k++) {
+      ^
+          detected during instantiation of "void <unnamed>::mrows<T,IT,R,TYPE>(const <unnamed>::Mat &, int, const <unnamed>::SX &, float (&)[R][T], int) [with T=8, IT=1, R=2, TYPE=-1]" at line 51 of tests/ffn_phases.cu
+
+ptxas info    : 26849 bytes gmem, 32080 bytes cmem[3], 112 bytes cmem[4]
+ptxas info    : Compiling entry function '_Z11quant_inputILi8EEvPKfS1_N46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558764QBufEi' for 'sm_89'
+ptxas info    : Function properties for _Z11quant_inputILi8EEvPKfS1_N46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558764QBufEi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 31 registers, used 0 barriers, 412 bytes cmem[0]
+ptxas info    : Compile time = 9.248 ms
+ptxas info    : Compiling entry function '_Z11quant_inputILi4EEvPKfS1_N46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558764QBufEi' for 'sm_89'
+ptxas info    : Function properties for _Z11quant_inputILi4EEvPKfS1_N46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558764QBufEi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 31 registers, used 0 barriers, 412 bytes cmem[0]
+ptxas info    : Compile time = 8.097 ms
+ptxas info    : Compiling entry function '_Z8scrub_l2P5uint4i' for 'sm_89'
+ptxas info    : Function properties for _Z8scrub_l2P5uint4i
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 14 registers, used 0 barriers, 364 bytes cmem[0]
+ptxas info    : Compile time = 0.638 ms
+ptxas info    : Compiling entry function '_Z16down_tiles_phaseN46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558766LayerWEPKf' for 'sm_89'
+ptxas info    : Function properties for _Z16down_tiles_phaseN46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558766LayerWEPKf
+    752 bytes stack frame, 140 bytes spill stores, 792 bytes spill loads
+ptxas info    : Used 128 registers, used 1 barriers, 752 bytes cumulative stack size, 840 bytes cmem[0], 216 bytes cmem[2]
+ptxas info    : Compile time = 7309.936 ms
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi16EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi17EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi18EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi21EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi22EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi23EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELin1EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi16EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi17EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi18EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi21EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi22EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi23EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELin1EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z10down_phaseN46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558766LayerWEPKf' for 'sm_89'
+ptxas info    : Function properties for _Z10down_phaseN46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558766LayerWEPKf
+    432 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 128 registers, used 1 barriers, 432 bytes cumulative stack size, 840 bytes cmem[0], 148 bytes cmem[2]
+ptxas info    : Compile time = 6650.384 ms
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi17ELi2ELi16EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi17ELi2ELi17EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi17ELi2ELi18EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi17ELi2ELi21EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 64 bytes spill stores, 64 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi17ELi2ELi22EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi17ELi2ELi23EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi17ELi2ELin1EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi16EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi17EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi18EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi21EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi22EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELi23EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi1ELi2ELin1EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 12 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi16EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 12 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi17EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 12 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi18EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi21EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi22EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 12 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELi23EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 8 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi8ELi8ELi2ELin1EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 12 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558767resid32ILi8ELi17ELin1EEEvNS0_3MatENS0_4QBufEPfbPKfPh
+    0 bytes stack frame, 304 bytes spill stores, 580 bytes spill loads
+ptxas info    : Compiling entry function '_Z8gu_phaseN46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558766LayerWE' for 'sm_89'
+ptxas info    : Function properties for _Z8gu_phaseN46_GLOBAL__N__54c42434_13_ffn_phases_cu_146558766LayerWE
+    768 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 128 registers, used 1 barriers, 768 bytes cumulative stack size, 832 bytes cmem[0], 296 bytes cmem[2]
+ptxas info    : Compile time = 8414.362 ms
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi4ELi5ELi1ELi18EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi4ELi5ELi1ELi21EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi4ELi5ELi1ELi23EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_1465587611rows_nativeILi4ELi5ELi1ELin1EEEvRKNS0_3MatEiRKNS0_2SXERAT1__AT__fi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558766ffn_guILi4EEEvRKNS0_6LayerWEPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi16ELi16EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi16ELi17EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 112 bytes spill stores, 112 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi16ELi18EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 84 bytes spill stores, 84 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi16ELi21EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 224 bytes spill stores, 220 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi16ELi22EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 224 bytes spill stores, 220 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi16ELi23EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 96 bytes spill stores, 96 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi17ELi16EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 112 bytes spill stores, 112 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi17ELi17EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi17ELi18EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 60 bytes spill stores, 60 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi17ELi21EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 140 bytes spill stores, 140 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi17ELi22EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 140 bytes spill stores, 140 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi17ELi23EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 28 bytes spill stores, 28 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi18ELi16EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 80 bytes spill stores, 80 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi18ELi17EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 48 bytes spill stores, 48 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi18ELi18EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi18ELi21EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 24 bytes spill stores, 24 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi18ELi22EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 140 bytes spill stores, 140 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi18ELi23EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi21ELi16EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 192 bytes spill stores, 188 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi21ELi17EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 124 bytes spill stores, 124 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi21ELi18EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 24 bytes spill stores, 24 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi21ELi21EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi21ELi22EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 212 bytes spill stores, 208 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi21ELi23EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi22ELi16EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 228 bytes spill stores, 224 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi22ELi17EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 140 bytes spill stores, 140 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi22ELi18EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 148 bytes spill stores, 144 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi22ELi21EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 236 bytes spill stores, 228 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi22ELi22EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 100 bytes spill stores, 104 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi22ELi23EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 132 bytes spill stores, 132 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi23ELi16EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 76 bytes spill stores, 76 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi23ELi17EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 28 bytes spill stores, 28 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi23ELi18EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi23ELi21EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 4 bytes spill stores, 4 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi23ELi22EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 120 bytes spill stores, 120 bytes spill loads
+ptxas info    : Function properties for _ZN44_INTERNAL_54c42434_13_ffn_phases_cu_1465587646_GLOBAL__N__54c42434_13_ffn_phases_cu_146558769ffn_gu_iqILi4ELi23ELi23EEEvRKNS0_6LayerWE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads

@@ -1,0 +1,125 @@
+{
+  "model_filename": "Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S.gguf",
+  "model_repository": "ukisai/Swift-1.5-Qwen3.8-27B-GSQ-RCO-GGUF",
+  "model_revision": "d74895bbe5db4bec1e0024e7cc87d59c02d7631a",
+  "model_sha256": "1333c6ea70ef348d4ac6d62732772e8ad6571ac5b3754c14ed54f1a0d904a786",
+  "model_bytes": 11771546912,
+  "gpu": "RTX 4060 Ti 16 GB",
+  "architecture": "sm_89",
+  "clocks_changed": false,
+  "trunk_layers": 64,
+  "mtp_layers": 0,
+  "vocabulary": 248320,
+  "target_tensor_count": 851,
+  "main_device_weight_bytes": 11807737856,
+  "tokenizer_and_chat_template_match_original": true,
+  "tensor_schema_matches_original_trunk": true,
+  "greedy_native_scalar_exact_cases": 7,
+  "greedy_native_llama_text_exact_cases": 7,
+  "greedy_cases": 9,
+  "known_arithmetic_tasks_per_mk_mode": 4,
+  "unicode_copy_correct_both_mk_modes": true,
+  "benchmark_repetitions_per_mk_mode": 3,
+  "benchmarks": [
+    {
+      "case": "short_code",
+      "mk_scalar": {
+        "median_tps": 18.247137955305348,
+        "min_tps": 18.24279672454481,
+        "max_tps": 18.256831834232344,
+        "repeatable_ids": true,
+        "acceptance": 0.0
+      },
+      "mk_dflash2": {
+        "median_tps": 88.34512085907163,
+        "min_tps": 88.27369482430457,
+        "max_tps": 88.35320167928282,
+        "repeatable_ids": true,
+        "acceptance": 0.8902439024390244
+      },
+      "native_scalar_speedup": 4.841587819167297,
+      "llama_dflash2": {
+        "median_tps": 87.86410627215338,
+        "repetitions": 3,
+        "min_tps": 87.80160280965129,
+        "max_tps": 87.88584903416898
+      },
+      "native_vs_llama_dflash2_ratio": 1.005474528875629
+    },
+    {
+      "case": "long_code",
+      "mk_scalar": {
+        "median_tps": 18.106198351225334,
+        "min_tps": 18.10534668003826,
+        "max_tps": 18.10742475485691,
+        "repeatable_ids": true,
+        "acceptance": 0.0
+      },
+      "mk_dflash2": {
+        "median_tps": 85.53161425010606,
+        "min_tps": 85.52701928891794,
+        "max_tps": 85.55089569629526,
+        "repeatable_ids": true,
+        "acceptance": 0.8902439024390244
+      },
+      "native_scalar_speedup": 4.723885853394383,
+      "llama_dflash2": {
+        "median_tps": 81.81743802329069,
+        "repetitions": 3,
+        "min_tps": 81.79825278932041,
+        "max_tps": 81.87076298735178
+      },
+      "native_vs_llama_dflash2_ratio": 1.0453958999028796
+    },
+    {
+      "case": "numbered_lines",
+      "mk_scalar": {
+        "median_tps": 18.239467266102704,
+        "min_tps": 18.234429174882028,
+        "max_tps": 18.239643464595723,
+        "repeatable_ids": true,
+        "acceptance": 0.0
+      },
+      "mk_dflash2": {
+        "median_tps": 38.270263999556704,
+        "min_tps": 38.25161248714789,
+        "max_tps": 38.280194205626586,
+        "repeatable_ids": true,
+        "acceptance": 0.296551724137931
+      },
+      "native_scalar_speedup": 2.0982117208368476,
+      "llama_dflash2": {
+        "median_tps": 40.32868989325075,
+        "repetitions": 3,
+        "min_tps": 40.279218703205025,
+        "max_tps": 40.32913636182479
+      },
+      "native_vs_llama_dflash2_ratio": 0.9489587710599413
+    }
+  ],
+  "comparison_library_sha256": "f02a430553e9fa37a7fa3f1076eb233ee249d8eae8da820e2acecba68c882893",
+  "installed_library_sha256": "57bf4f85d4387fc3171d5bb883dd281ef5b726624a0eccfe8c58845dd0cf9541",
+  "library_change": "Host-only MTP metadata C API; CUDA objects unchanged.",
+  "numerical_limit": "Both coding fixtures diverged between MK scalar and native at token 122, choosing different valid docstring examples. No broad accuracy or perplexity evaluation.",
+  "source_sha256": {
+    "capi.cpp": "ed7ee5938f667a048e75ba0ef42dc14969bd5475a67fd3c3b6903fa54643bcac",
+    "serve_ada.py": "b4ed997209e5e68a0f1e1fe27abaadf310b29c5c9de9ea70aacdba637c21b9ee",
+    "server/mk_server.py": "39589836a3a8a742de9520477cca02d037b5d2931133184b984e93183aa27019",
+    "qwen38_mk.cu": "3cc7b50b0754695262b54c358a081b72ce8ec8191f7c0aa04e8de4b95ad15891",
+    "dflash_native.cu": "a4157f6d8979a345b0989853814d3eca2e8976fd1c742d84e2843431e684ae37",
+    "tests/model_variant_gpu.py": "9c59a51ed6791fb0661e3d64dbd2b040a9592c75b382a8931ef63e24b5cddac3",
+    "tests/gpu_server_smoke.py": "cbc5d9cd34f35608c6a105473a129972c25755dc9ff9eb0ed2ae53856e4a9990",
+    "main.cu": "55d8dfd3bf03a21cec9a7e231df6d980dac1e20cca43ef2e143c57728b6884d0"
+  },
+  "http_checks_72k_q4": 16,
+  "longest_populated_prompt_tokens": 35330,
+  "runtime_cuda_used_gib": 15.066,
+  "runtime_cuda_free_gib": 0.589,
+  "nvml_end_mib": "15472,16380",
+  "long_prompt_prefill_seconds": 132.94049501419067,
+  "long_prompt_secret_retrieval": true,
+  "direct_server_auto_draft": 0,
+  "llama_dflash2_runs": 9,
+  "direct_cli_auto_draft": 0,
+  "cli_sha256": "461fab3ff604214b3d8977899c562ebe2bb68713dc4d694b5a9e310826783bb5"
+}

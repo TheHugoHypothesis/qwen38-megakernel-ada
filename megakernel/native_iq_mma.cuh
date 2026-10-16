@@ -100,7 +100,8 @@ __device__ __forceinline__ void iq_mma16_dual(
 
 // DP4A companion: the original IQ16 order for each dot, with separate gate/up
 // encodings and one load of the activation per pair of weight fragments.
-template<int T, int UNITS, int GT, int UT, bool PRESERVE_IQ2_ORDER = false, bool ZERO = true>
+template<int T, int UNITS, int GT, int UT, bool PRESERVE_IQ2_ORDER = false, bool ZERO = true,
+         bool SEPARATE_IQ2_ROUNDING = false>
 __device__ __forceinline__ void iq_dp4a_dual(
         const uint8_t * gate, const uint8_t * up,
         const int4 * xa, const int4 * xb, const uint2 * meta,
@@ -125,15 +126,19 @@ __device__ __forceinline__ void iq_dp4a_dual(
                 if constexpr (PRESERVE_IQ2_ORDER && (GT == 16 || GT == 17 || GT == 22)) {
                     // Decode a pair once, retaining the original two F32
                     // updates and d*(weight_scale*dot8) association.
-                    g[t] += d * (wg.d * __dp4a(wg.q.x, x.x, __dp4a(wg.q.y, x.y, 0)));
-                    g[t] += d * (wg.d * __dp4a(wg.q.z, x.z, __dp4a(wg.q.w, x.w, 0)));
+                    const float a=wg.d*__dp4a(wg.q.x,x.x,__dp4a(wg.q.y,x.y,0));
+                    const float b=wg.d*__dp4a(wg.q.z,x.z,__dp4a(wg.q.w,x.w,0));
+                    if constexpr(SEPARATE_IQ2_ROUNDING){g[t]=__fadd_rn(g[t],__fmul_rn(d,a));g[t]=__fadd_rn(g[t],__fmul_rn(d,b));}
+                    else {g[t]+=d*a;g[t]+=d*b;}
                 } else {
                     const int dg = __dp4a(wg.q.w, x.w, __dp4a(wg.q.z, x.z, __dp4a(wg.q.y, x.y, __dp4a(wg.q.x, x.x, 0))));
                     g[t] += d * wg.d * dg;
                 }
                 if constexpr (PRESERVE_IQ2_ORDER && (UT == 16 || UT == 17 || UT == 22)) {
-                    u[t] += d * (wu.d * __dp4a(wu.q.x, x.x, __dp4a(wu.q.y, x.y, 0)));
-                    u[t] += d * (wu.d * __dp4a(wu.q.z, x.z, __dp4a(wu.q.w, x.w, 0)));
+                    const float a=wu.d*__dp4a(wu.q.x,x.x,__dp4a(wu.q.y,x.y,0));
+                    const float b=wu.d*__dp4a(wu.q.z,x.z,__dp4a(wu.q.w,x.w,0));
+                    if constexpr(SEPARATE_IQ2_ROUNDING){u[t]=__fadd_rn(u[t],__fmul_rn(d,a));u[t]=__fadd_rn(u[t],__fmul_rn(d,b));}
+                    else {u[t]+=d*a;u[t]+=d*b;}
                 } else {
                     const int du = __dp4a(wu.q.w, x.w, __dp4a(wu.q.z, x.z, __dp4a(wu.q.y, x.y, __dp4a(wu.q.x, x.x, 0))));
                     u[t] += d * wu.d * du;

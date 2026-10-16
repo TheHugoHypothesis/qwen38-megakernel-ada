@@ -27,12 +27,12 @@ class CondensedExportTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def fixture(self, name, ids, is_draft):
+    def fixture(self, name, ids, is_draft, width=256, mtp=True, mixed=False):
         path = self.root / (name + ".gguf")
         w = gguf.GGUFWriter(path, "dflash" if is_draft else "qwen35")
         w.add_string("general.name", name)
-        w.add_uint32("qwen35.block_count", 65)
-        w.add_uint32("qwen35.nextn_predict_layers", 1)
+        w.add_uint32("qwen35.block_count", 65 if mtp else 64)
+        w.add_uint32("qwen35.nextn_predict_layers", int(mtp))
         w.add_string("tokenizer.ggml.model", "gpt2")
         w.add_string("tokenizer.ggml.pre", "qwen35")
         w.add_array("tokenizer.ggml.tokens", [self.tokens[i] for i in ids])
@@ -44,10 +44,12 @@ class CondensedExportTests(unittest.TestCase):
             w.add_uint32("tokenizer.ggml.mask_token_id", 33)
         w.add_string("tokenizer.chat_template", "unchanged template")
         for tensor in (prepare.SELECTORS if is_draft else prepare.VOCAB_WEIGHTS):
-            data = np.arange(36 * 144, dtype=np.uint16).astype(np.uint8).reshape(36, 144)[ids]
-            w.add_tensor(tensor, data, raw_dtype=gguf.GGMLQuantizationType.Q4_K)
+            kind = gguf.GGMLQuantizationType.IQ2_S if mixed and tensor == 'token_embd.weight' else gguf.GGMLQuantizationType.Q4_K
+            row_bytes = width // 256 * (82 if kind == gguf.GGMLQuantizationType.IQ2_S else 144)
+            data = np.arange(36 * row_bytes, dtype=np.uint32).astype(np.uint8).reshape(36, row_bytes)[ids]
+            w.add_tensor(tensor, data, raw_dtype=kind)
         w.add_tensor("blk.0.attn_norm.weight", np.arange(256, dtype=np.float32))
-        if not is_draft:
+        if not is_draft and mtp:
             w.add_tensor("blk.64.nextn.enorm.weight", np.arange(256, dtype=np.float32))
         w.write_header_to_file()
         w.write_kv_data_to_file()
@@ -97,6 +99,37 @@ class CondensedExportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "token types differ"):
             prepare.token_mapping(self.target, self.draft)
         self.target.fields = fields
+
+    def test_vocab_rows_preserve_mixed_quantized_source_bytes(self):
+        source = self.fixture('refined-source', list(range(36)), False, width=5120, mtp=False, mixed=True)
+        path = self.root / 'refined-condensed.gguf'
+        report = prepare.export_gguf(source, path, tokenizer_from=self.target,
+            gather=self.ids, gather_names=prepare.VOCAB_WEIGHTS)
+        written = gguf.GGUFReader(path)
+        prepare.verify_source(written, source, self.ids)
+        self.assertEqual(report['removed_tensors'], [])
+        src = {t.name: t for t in source.tensors}
+        for t in written.tensors:
+            self.assertEqual(t.tensor_type, src[t.name].tensor_type)
+            if t.name in prepare.VOCAB_WEIGHTS:
+                self.assertEqual(list(t.shape), [5120, 32])
+        self.assertEqual(prepare.value(written, 'qwen35.block_count'), 64)
+        self.assertEqual(prepare.value(written, 'qwen35.nextn_predict_layers'), 0)
+
+    def test_maskless_source_token_mapping(self):
+        source = self.fixture('source-without-mask', list(range(36)), False)
+        # This synthetic source contains both merges; source/target special IDs differ.
+        source.fields['tokenizer.ggml.merges'] = self.draft.fields['tokenizer.ggml.merges']
+        mapping, mask = prepare.token_mapping(self.target, source, require_mask=False)
+        self.assertEqual(mapping, self.ids)
+        self.assertIsNone(mask)
+        with self.assertRaisesRegex(ValueError, 'mask_token_id'):
+            prepare.token_mapping(self.target, source)
+
+    def test_non_vocab_gather_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'vocabulary-indexed'):
+            prepare.export_gguf(self.target, self.root / 'bad.gguf', gather=self.ids,
+                gather_names={'blk.0.attn_norm.weight'})
 
 
 if __name__ == "__main__":

@@ -22,6 +22,10 @@
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
 #include "ggml-cuda.h"
+// Exact header-sharing IQ2 decoder selected by the Ada phase/oracle checks.
+#ifndef MK_IQ2_DIRECT
+#define MK_IQ2_DIRECT 1
+#endif
 #include "native_quant.cuh"
 #include "kv_quant.cuh"
 #include "native_iq_mma.cuh"
@@ -171,6 +175,10 @@ struct Bufs {
     bool ffn_iq_mma;
     bool ffn_down_global;
     bool iq_paired;
+    bool ffn_iq_small; // Ada T=4 experiment: same ordered IQ dots, shared gate/up input loads
+#ifdef MK_PHASE_ONLY
+    float * gu_probe; // isolated-test diagnostics; absent from production buffers
+#endif
 };
 
 __constant__ ModelW cW;
@@ -957,14 +965,19 @@ __device__ __noinline__ void ffn_gu_iq(const LayerW & W) {
             const uint8_t * up_row = W.fu.w + size_t(row) * W.fu.rb;
             float gate[T], up[T];
             if constexpr (GT == 16 || GT == 17 || GT == 22 || UT == 16 || UT == 17 || UT == 22) {
-                if (cB.iq_paired) iq_dp4a_dual<T, U_D, GT, UT, true>(gate_row, up_row, sx.xa, sx.xb, sx.xm, gate, up);
+                if (cB.iq_paired) iq_dp4a_dual<T, U_D, GT, UT, true, true, T==4>(gate_row, up_row, sx.xa, sx.xb, sx.xm, gate, up);
                 else iq_dp4a_dual<T, U_D, GT, UT>(gate_row, up_row, sx.xa, sx.xb, sx.xm, gate, up);
             } else iq_dp4a_dual<T, U_D, GT, UT>(gate_row, up_row, sx.xa, sx.xb, sx.xm, gate, up);
             wsum_all<T>(gate);
             wsum_all<T>(up);
             if (lane == r) {
 #pragma unroll
-                for (int t = 0; t < T; t++) act[t] = silu(gate[t] * s_rs[t]) * (up[t] * s_rs[t]);
+                for (int t = 0; t < T; t++) {
+                    act[t] = silu(gate[t] * s_rs[t]) * (up[t] * s_rs[t]);
+#ifdef MK_PHASE_ONLY
+                    if(cB.gu_probe){float * p=cB.gu_probe+(size_t(t)*FF+row)*5;p[0]=gate[t];p[1]=up[t];p[2]=gate[t]*s_rs[t];p[3]=up[t]*s_rs[t];p[4]=act[t];}
+#endif
+                }
             }
         }
 #pragma unroll
@@ -1039,8 +1052,8 @@ __device__ __noinline__ void ffn_gu(const LayerW & W, uint8_t * /*sm*/) {
             return;
         }
     }
-    if constexpr (T > 5) {
-        if (cB.ffn_iq_fused) {
+    if constexpr (T > 5 || T == 4) {
+        if (cB.ffn_iq_fused && (T > 5 || (cB.ffn_iq_small && cB.iq_paired))) {
             switch (W.fg.type) {
                 case 16: if (ffn_gu_iq_up<T, 16>(W)) return; break;
                 case 17: if (ffn_gu_iq_up<T, 17>(W)) return; break;
@@ -1073,7 +1086,12 @@ __device__ __noinline__ void ffn_gu(const LayerW & W, uint8_t * /*sm*/) {
             for (int k = 0; k < RG; k++)
                 if (lane == r + k) {
 #pragma unroll
-                    for (int t = 0; t < T; t++) act[t] = silu(a[k][t] * s_rs[t]) * (a[RG + k][t] * s_rs[t]);
+                    for (int t = 0; t < T; t++) {
+                        act[t] = silu(a[k][t] * s_rs[t]) * (a[RG + k][t] * s_rs[t]);
+#ifdef MK_PHASE_ONLY
+                        if(cB.gu_probe){float * p=cB.gu_probe+(size_t(t)*FF+row+k)*5;p[0]=a[k][t];p[1]=a[RG+k][t];p[2]=a[k][t]*s_rs[t];p[3]=a[RG+k][t]*s_rs[t];p[4]=act[t];}
+#endif
+                    }
                 }
         }
 #pragma unroll
@@ -1984,6 +2002,7 @@ __device__ void main_control(int mode, int last, int T, const int * tgt) {
     }
 }
 
+#ifndef MK_PHASE_ONLY
 template <int T>
 __device__ void main_forward(const Launch & P, uint8_t * /*sm*/, unsigned & epoch) {
     uint8_t * const sm = smem;
@@ -2679,6 +2698,10 @@ struct MKEngine::Impl {
         const char * paired = getenv("MK_IQ_PAIRED");
         if (!paired) paired = getenv("MK_IQ2_PAIRED"); // earlier prototype switch
         hb.iq_paired = !paired || strcmp(paired, "0") != 0;
+        const char * small_iq = getenv("MK_FFN_IQ_SMALL");
+        if (small_iq && strcmp(small_iq,"0") && strcmp(small_iq,"1"))
+            throw std::runtime_error("MK_FFN_IQ_SMALL must be 0 or 1");
+        hb.ffn_iq_small = small_iq && strcmp(small_iq,"0") != 0;
         profiling = getenv("MK_PROFILE") != nullptr;
         hb.prof = profiling ? dalloc<unsigned long long>(4096 + 1024 * 128) : nullptr;
         CK(cudaMemcpyToSymbol(cB, &hb, sizeof(Bufs)));
@@ -3378,3 +3401,6 @@ std::vector<float> MKEngine::last_hidden() {
 }
 
 int MKEngine::vocab_size() const { return p_->vocab; }
+#else
+} // namespace; isolated tests compile the exact production phase functions above
+#endif

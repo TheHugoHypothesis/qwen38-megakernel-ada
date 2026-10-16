@@ -37,3 +37,17 @@ The reasoning-effort compatibility update for Unsloth is recorded in [stage 24](
 ## Optional Q4 target KV
 
 [Stage 26](bench/dflash-port/26-Q4-TARGET-KV.md) documents the optional packed INT4 target KV implementation. Q8 remains the default. At 65,536 cache capacity and chunk 128, Q4 saves 1.0625 GiB versus Q8. Quality checks found 16/20 generations with IDs matching Q8; a long fixture also had lower throughput and a changed continuation. The checks do not establish broad quality equivalence. See the stage note for the complete test list, memory readings, and raw artifacts.
+
+## Swift 1.5 target integration
+
+See [stage 28](bench/dflash-port/28-SWIFT-1.5.md) for the verified no-MTP IQ3_S target, native DFlash2 acceptance and numerical comparisons, 72K/Q4 serving and 35,330-token retrieval. Existing CUDA kernels are reused; variant-aware defaults are handled by the launcher, server and CLI.
+
+## Swift ASCII-condensed export
+
+[Stage 29](bench/dflash-port/29-SWIFT-ASCII-CONDENSED.md) applies the earlier verified retained vocabulary to Swift weights, preserving all retained quantized rows and all other tensors. Native DFlash2 passed 16 HTTP checks at 96K/Q4 with 35,330-token retrieval. The observed accent-copy regression is recorded alongside memory savings and export checksums.
+
+## Ordered T4 fusion and optional verification policies
+
+[Stage 30](bench/dflash-port/30-ADA-PRIORITIES-AND-T4.md) extends the existing IQ gate/up fusion to T4 and evaluates full, fixed-prefix and acceptance-based verification. The full noncausal draft block is preserved for prefix policies; changing `--draft` remains a separate configuration. Full-width verification stays the default. Model-specific prompt validation, CPU arithmetic oracles and real GPU/API checks accompany the performance evidence.
+
+[Stage 31](bench/dflash-port/31-T4-PRECISION-T8-AND-AGENT-CONTEXT.md) localizes the token-164 T4 difference to FMA contraction vs. separate multiply/add rounding in IQ2 accumulation, restores bit-exact parity across all 64 FFN gate/up phases and all 313 × 64 traced layer inputs, integrates an exact header-sharing IQ2 decoder (`MK_IQ2_DIRECT=1`, verified across 190,045,440 16-value fragments), and profiles populated agent/tool contexts from 8.2K to 33.7K tokens.

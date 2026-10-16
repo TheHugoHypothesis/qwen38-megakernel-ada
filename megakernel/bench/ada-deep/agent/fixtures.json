@@ -1,0 +1,71 @@
+{
+  "model": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+  "sources_sha256": {
+    "server/mk_server.py": "2edfd1b751cf65fec97154bc2ec689b2690971e3f872b59035c5c8c132293caa",
+    "capi.cpp": "12092a1ec1feb3f6dd4a479a8152251fffdf6877888aba7b02ddcebede43c75a",
+    "qwen38_mk.cu": "0b68455a118a9bb233132709b3d267701234fa39cdea72a50da6bf67810f3786",
+    "native_quant.cuh": "c5f5c6a7cd6efd7ddade94aa6162288c375052e360e2c14b611f5f6b4c4a1a53",
+    "native_iq_mma.cuh": "9bd0d03fcaef8014361ce9730082ae7856af036f21bef6305a3e9201627eeead",
+    "prefill.cuh": "f19ef8e2b89a1316380b4f92364d8787de0cd4731bf90952849bc592dd91c6aa",
+    "prefill_gemm.cuh": "d8524afa444c1b6d6e69b84f7f28aa493772fbf0ea050571ff69334a007a91a4",
+    "tests/external_verify.cpp": "9171d84922e9401e56619f84bc4b4aedc7fb22ec8a82982b3a2d5f0a309bdd9d"
+  },
+  "cases": [
+    {
+      "workload": "patch",
+      "requested_tokens": 8192,
+      "prompt_tokens": 8215,
+      "prompt_ids": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/bench/ada-deep/agent/prompts/patch-8192.ids",
+      "prompt_text_sha256": "600f4461965bcc020fdd4961e40452b57bd457236bc8e5e733eb2636a623ece6",
+      "thinking": false,
+      "corpus_characters": 29425
+    },
+    {
+      "workload": "patch",
+      "requested_tokens": 16384,
+      "prompt_tokens": 16764,
+      "prompt_ids": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/bench/ada-deep/agent/prompts/patch-16384.ids",
+      "prompt_text_sha256": "f19e836889b4c9e23a8cf846bce559e75f936f888ccc190a73cbc4105a3d62f8",
+      "thinking": false,
+      "corpus_characters": 55248
+    },
+    {
+      "workload": "patch",
+      "requested_tokens": 32768,
+      "prompt_tokens": 33666,
+      "prompt_ids": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/bench/ada-deep/agent/prompts/patch-32768.ids",
+      "prompt_text_sha256": "ac1e31becf43bce02a688d241c86ff272a1c9c3f372210d09ac3eaddd534e017",
+      "thinking": false,
+      "corpus_characters": 98304
+    },
+    {
+      "workload": "tool",
+      "requested_tokens": 8192,
+      "prompt_tokens": 8215,
+      "prompt_ids": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/bench/ada-deep/agent/prompts/tool-8192.ids",
+      "prompt_text_sha256": "cc6fb7c22abfb69255f352abb1fdf5d49ded2c70862738d9afdc8ce2c7afdf13",
+      "thinking": true,
+      "corpus_characters": 29416
+    },
+    {
+      "workload": "tool",
+      "requested_tokens": 16384,
+      "prompt_tokens": 16762,
+      "prompt_ids": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/bench/ada-deep/agent/prompts/tool-16384.ids",
+      "prompt_text_sha256": "cc35d56971b5f481fa244b8dc3e52e770511eeb9de4b2e54ba095299a5747be0",
+      "thinking": true,
+      "corpus_characters": 55241
+    },
+    {
+      "workload": "tool",
+      "requested_tokens": 32768,
+      "prompt_tokens": 33668,
+      "prompt_ids": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/qwen38-megakernel-ada/megakernel/bench/ada-deep/agent/prompts/tool-32768.ids",
+      "prompt_text_sha256": "c0d4b0a775f3db012da3ce622614d357e60f174ad20064da4acadcc8d5c5b738",
+      "thinking": true,
+      "corpus_characters": 98304
+    }
+  ],
+  "limits": "Build real-tokenized agent/tool fixtures and profile populated context growth.\n\nFixtures are synthetic conversations containing frozen repository source and a\ntool result, rendered by the target GGUF template. They are not an OpenCode trace\nor a scored coding benchmark. Profile timings and production throughput are run\nseparately. GPU clocks/power settings are never changed.\n",
+  "corpus_sha256": "3aae0bc68316b3512fd50b141c21b2b308a33b8d744ecd95310641f264c56a5a"
+}

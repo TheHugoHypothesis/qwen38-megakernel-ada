@@ -38,6 +38,20 @@ def log(*a):
     print("[mk-server]", *a, file=sys.stderr, flush=True)
 
 
+def model_mtp_layers(lib, model):
+    """Use the host-only CUDA loader schema check before choosing a decoder."""
+    L = ctypes.CDLL(lib)
+    if not hasattr(L, 'mk_model_mtp_layers'):
+        raise RuntimeError('rebuild libqwen38mk.so for automatic MTP detection, or specify --draft explicitly')
+    L.mk_model_mtp_layers.argtypes = [ctypes.c_char_p]
+    L.mk_model_mtp_layers.restype = ctypes.c_int
+    L.mk_last_error.restype = ctypes.c_char_p
+    mtp = L.mk_model_mtp_layers(os.fsencode(model))
+    if mtp < 0:
+        raise RuntimeError(L.mk_last_error().decode())
+    return mtp
+
+
 class Engine:
     """ctypes binding of capi.cpp"""
 
@@ -304,6 +318,9 @@ class Server:
         self.lock = threading.Lock()
         self.warned = set()
         log(f"ready in {time.time() - t0:.1f} s: {self.model_id}, ctx {args.ctx}, {args.draft} drafts")
+        if getattr(args, 'draft_model', None):
+            log(f"DFlash verification: {os.environ.get('MK_DFLASH_VERIFY', 'full')}; "
+                f"T4 IQ fusion: {os.environ.get('MK_FFN_IQ_SMALL', '0')}")
 
     def warn_once(self, key, msg):
         if key not in self.warned:
@@ -562,13 +579,21 @@ def main():
     ap.add_argument("-d", "--draft", type=int)
     ap.add_argument("--draft-vocab", default=os.path.join(os.path.dirname(HERE), "draft_vocab_32k.bin"))
     ap.add_argument("--draft-model", help="native DFlash2 GGUF; --draft selects 1..7 proposals")
+    ap.add_argument("--verify-width", choices=("full", "3", "auto"),
+                    help="native DFlash2 only; keeps the trained draft block, optionally verifies a shorter prefix")
     ap.add_argument("--prefill-chunk", default="auto", help="auto by free VRAM, or 128..2048 in multiples of 128")
     ap.add_argument("--lib", default=os.path.join(os.path.dirname(HERE), "libqwen38mk.so"))
     ap.add_argument("--kv", choices=["auto", "f16", "q8", "q4"], default="auto",
                     help="Target KV cache format; q4 is lossy symmetric int4 (auto chooses FP16/Q8 only)")
     args = ap.parse_args()
+    if args.verify_width is not None:
+        if not args.draft_model:
+            ap.error('--verify-width requires a native --draft-model')
+        os.environ['MK_DFLASH_VERIFY'] = args.verify_width
+        if args.verify_width != 'full':
+            os.environ.setdefault('MK_FFN_IQ_SMALL', '1')
     if args.draft is None:
-        args.draft = 7 if args.draft_model else 4
+        args.draft = 7 if args.draft_model else 4 if model_mtp_layers(args.lib, args.model) else 0
     os.environ["MK_PREFILL_CHUNK"] = str(args.prefill_chunk)
     srv = Server(args)
     httpd = ThreadingHTTPServer((args.host, args.port), make_handler(srv))

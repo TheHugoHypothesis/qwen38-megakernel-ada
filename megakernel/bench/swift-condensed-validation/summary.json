@@ -1,0 +1,148 @@
+{
+  "gpu": "RTX 4060 Ti 16 GB",
+  "architecture": "sm_89",
+  "clocks_changed": false,
+  "preparation": {
+    "operation": "reuse_verified_vocabulary_subset",
+    "sources": {
+      "target": {
+        "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S.gguf",
+        "sha256": "1333c6ea70ef348d4ac6d62732772e8ad6571ac5b3754c14ed54f1a0d904a786",
+        "bytes": 11771546912
+      },
+      "vocabulary_reference": {
+        "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-GSQ-RCO-ASCII-Condensed-noMTP.gguf",
+        "sha256": "6a1cce42ad0abc0b4ca00610ba761a746299af18ab5b4effc7df822c9b755a99",
+        "bytes": 11230505920
+      },
+      "condensed_draft": {
+        "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-ascii-condensed-qwen38/prepared/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf",
+        "sha256": "3b611e28dd72af6ced025ed2410927557304245ed244f6ddc14151ab061ccd96",
+        "bytes": 1102611520
+      },
+      "license": {
+        "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/release/LICENSE",
+        "sha256": "1367057bf17041aa1d69286a1400be5f464d2f8b8f54f600088b209eac1850be"
+      }
+    },
+    "target": {
+      "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-ASCII-Condensed-noMTP.gguf",
+      "sha256": "288a9a35ac8de49f3dc506dbd820c6213129248d519a3b51c4402c412f16f7a3",
+      "bytes": 11230506048,
+      "tensor_count": 851,
+      "removed_tensors": []
+    },
+    "draft": {
+      "path": "/home/elliot/Desktop/God Ex Machina/00 Workbook/Qwen38-rtx4060ti-16gb/models-swift-qwen38/ascii-condensed/Qwen3.8-27B-DFlash2-ASCII-Condensed-Q4_K_M.gguf",
+      "sha256": "3b611e28dd72af6ced025ed2410927557304245ed244f6ddc14151ab061ccd96",
+      "bytes": 1102611520
+    },
+    "original_vocab": 248320,
+    "new_vocab": 130020,
+    "mask_token_id": 129770,
+    "mtp_layers": 0,
+    "mtp_payload_removed_bytes": 0,
+    "target_vocab_weight_saving_bytes": 534716000,
+    "file_saving_bytes": 541040864,
+    "untouched_non_vocabulary_tensors": 849,
+    "retained_rows_verified_per_vocab_tensor": 130020,
+    "all_tensor_types_unchanged": true,
+    "all_other_source_metadata_preserved": true,
+    "no_requantization_or_finetuning": true,
+    "draft_retrained_for_source": false,
+    "quality_note": "Pruning changes tokenization and the target distribution; quality must be measured separately."
+  },
+  "cpu_export_tests": 7,
+  "greedy_native_scalar_exact_cases": 7,
+  "greedy_native_llama_text_exact_cases": 7,
+  "greedy_cases": 9,
+  "known_arithmetic_tasks_per_mk_mode": 4,
+  "full_swift_text_matches_by_mode": {
+    "mk_scalar": 8,
+    "mk_dflash2": 8,
+    "llama_scalar": 8
+  },
+  "unicode_copy_expected": "café α → 中文 😀",
+  "unicode_copy_observed": "cafÿ α → 中文 😀",
+  "http_checks_96k_q4": 16,
+  "longest_populated_prompt_tokens": 35330,
+  "long_prompt_secret_retrieved": true,
+  "long_prompt_timings": {
+    "prompt_n": 35330,
+    "prompt_ms": 132929.28814888,
+    "predicted_n": 8,
+    "predicted_ms": 176.5885353088379,
+    "predicted_per_second": 45.30305427817667
+  },
+  "runtime_cuda_used_gib": 14.945,
+  "runtime_cuda_free_gib": 0.711,
+  "nvml_end_mib": "15348, 16380",
+  "benchmark_repetitions": 1,
+  "benchmarks": [
+    {
+      "case": "short_code",
+      "mk_scalar": {
+        "median_tps": 18.690052996301887,
+        "min_tps": 18.690052996301887,
+        "max_tps": 18.690052996301887,
+        "repeatable_ids": null,
+        "acceptance": 0.0
+      },
+      "mk_dflash2": {
+        "median_tps": 92.6854284581606,
+        "min_tps": 92.6854284581606,
+        "max_tps": 92.6854284581606,
+        "repeatable_ids": null,
+        "acceptance": 0.8902439024390244
+      },
+      "native_scalar_speedup": 4.959077883647512
+    },
+    {
+      "case": "long_code",
+      "mk_scalar": {
+        "median_tps": 18.531905905434993,
+        "min_tps": 18.531905905434993,
+        "max_tps": 18.531905905434993,
+        "repeatable_ids": null,
+        "acceptance": 0.0
+      },
+      "mk_dflash2": {
+        "median_tps": 89.61792608630687,
+        "min_tps": 89.61792608630687,
+        "max_tps": 89.61792608630687,
+        "repeatable_ids": null,
+        "acceptance": 0.8902439024390244
+      },
+      "native_scalar_speedup": 4.835872065378011
+    },
+    {
+      "case": "numbered_lines",
+      "mk_scalar": {
+        "median_tps": 18.668986330531524,
+        "min_tps": 18.668986330531524,
+        "max_tps": 18.668986330531524,
+        "repeatable_ids": null,
+        "acceptance": 0.0
+      },
+      "mk_dflash2": {
+        "median_tps": 40.17196985737337,
+        "min_tps": 40.17196985737337,
+        "max_tps": 40.17196985737337,
+        "repeatable_ids": null,
+        "acceptance": 0.296551724137931
+      },
+      "native_scalar_speedup": 2.151802414235826
+    }
+  ],
+  "library_sha256": "57bf4f85d4387fc3171d5bb883dd281ef5b726624a0eccfe8c58845dd0cf9541",
+  "source_sha256": {
+    "tools/condense_target.py": "24538640e0ee05988a3c95b65571fa341860ee56a8215f097b2eb566a2741324",
+    "tools/prepare_condensed.py": "4b41fefd7666b7fc804107306f3460e10c0fca0923c5d2ba9523c1b66bbf30e9",
+    "tests/test_prepare_condensed.py": "41c06e48e0a6e60dabf5aa1bb9a734cca5e8b62ae31b29bcee09d173354e63a9",
+    "tests/model_variant_gpu.py": "4f6dd05c294e14eb17d1228f87fd50555bed7c3b0a6814bdab188112bbbc8618",
+    "tests/gpu_server_smoke.py": "cbc5d9cd34f35608c6a105473a129972c25755dc9ff9eb0ed2ae53856e4a9990",
+    "qwen38_mk.cu": "3cc7b50b0754695262b54c358a081b72ce8ec8191f7c0aa04e8de4b95ad15891",
+    "dflash_native.cu": "a4157f6d8979a345b0989853814d3eca2e8976fd1c742d84e2843431e684ae37"
+  },
+  "limits": "No full-96K population or broad task/perplexity evaluation. Single performance samples. Pruning changes Unicode quality."
+}
