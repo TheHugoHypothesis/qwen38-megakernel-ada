@@ -1,0 +1,67 @@
+{
+  "prefill_chunk": "128",
+  "ctx": 40000,
+  "kv": "q4",
+  "turns": [
+    {
+      "turn": "1_cold_8k_tool_call",
+      "prompt_tokens": 8136,
+      "cached_tokens": 0,
+      "prompt_ms": 28340.847730636597,
+      "completion_tokens": 53,
+      "predicted_ms": 709.5201015472412,
+      "predicted_per_second": 74.69837695144027,
+      "has_reasoning": true,
+      "tool_calls": [
+        {
+          "id": "call_1446497356a14aa29272870c",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\": \"megakernel/capi.cpp\"}"
+          }
+        }
+      ]
+    },
+    {
+      "turn": "2_same_prompt_8k_retry",
+      "prompt_tokens": 8136,
+      "cached_tokens": 8135,
+      "prompt_ms": 58.05468559265137,
+      "completion_tokens": 53,
+      "predicted_ms": 709.583044052124,
+      "predicted_per_second": 74.69175094339876
+    },
+    {
+      "turn": "3_tool_roundtrip_stripped_reasoning",
+      "prompt_tokens": 8247,
+      "cached_tokens": 8190,
+      "incremental_tokens": 57,
+      "prompt_ms": 322.93701171875,
+      "completion_tokens": 48,
+      "predicted_ms": 558.3958625793457,
+      "predicted_per_second": 85.96052230451367,
+      "tool_calls": [
+        {
+          "id": "call_c5825c65b663436f808e2eb9",
+          "type": "function",
+          "function": {
+            "name": "grep_code",
+            "arguments": "{\"pattern\": \"checkpoint_pos\"}"
+          }
+        }
+      ]
+    },
+    {
+      "turn": "4_second_tool_roundtrip_summary",
+      "prompt_tokens": 8358,
+      "cached_tokens": 8295,
+      "incremental_tokens": 63,
+      "prompt_ms": 465.0158882141113,
+      "completion_tokens": 128,
+      "predicted_ms": 2771.127223968506,
+      "predicted_per_second": 46.19058948029545,
+      "content": "`mk_checkpoint_pos` returns the integer position (token index) in the engine's current sequence at which a saved checkpoint exists, allowing the server to rewind to that point and"
+    }
+  ]
+}

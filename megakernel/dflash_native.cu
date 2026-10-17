@@ -398,7 +398,7 @@ struct MKDFlashNative::Impl {
             out.write(reinterpret_cast<const char *>(f.data()),f.size()*4);
         }
     }
-    void multiply(Matrix w,const float * src,float * dst,int n) {
+    void multiply(Matrix w,const float * src,float * dst,int n,bool reuse_input=false) {
         switch(n) {
         case 1:small_mm<1>(w,src,dst);return;case 2:small_mm<2>(w,src,dst);return;
         case 3:small_mm<3>(w,src,dst);return;case 4:small_mm<4>(w,src,dst);return;
@@ -411,7 +411,8 @@ struct MKDFlashNative::Impl {
             input_half=allocate<__half>(size_t(chunk)*25600);
         }
         dn::dequant_half<<<(size_t(w.K)*w.N+2047)/2048,256,0,stream>>>(w,weight_half);
-        dn::to_half<<<(size_t(w.K)*n+255)/256,256,0,stream>>>(src,input_half,size_t(w.K)*n);
+        if(!reuse_input)
+            dn::to_half<<<(size_t(w.K)*n+255)/256,256,0,stream>>>(src,input_half,size_t(w.K)*n);
         const float alpha=1,beta=0;
         auto status=cublasGemmEx(blas,CUBLAS_OP_T,CUBLAS_OP_N,w.N,n,w.K,&alpha,
             weight_half,CUDA_R_16F,w.K,input_half,CUDA_R_16F,w.K,&beta,dst,CUDA_R_32F,w.N,
@@ -556,6 +557,7 @@ MKDFlashNative::MKDFlashNative(MKEngine & target,const std::string & path,int co
 }
 MKDFlashNative::~MKDFlashNative()=default;
 const std::vector<int> & MKDFlashNative::layers() const{return p_->taps;}
+int MKDFlashNative::cache_window() const{return std::getenv("MK_DFLASH_TRACE")?0:dn::CACHE;}
 size_t MKDFlashNative::allocated_bytes() const{return p_->bytes;}
 void MKDFlashNative::reset(){p_->end=0;p_->checkpoint_end=-1;p_->last_n=0;injection_seconds=0;draft_seconds=0;injection_gpu_seconds=0;}
 void MKDFlashNative::inject(int pos,int n,const std::vector<float> & f) {
@@ -569,8 +571,13 @@ void MKDFlashNative::inject(int pos,int n,const std::vector<float> & f) {
 }
 void MKDFlashNative::inject_device(int pos,int n,const float * f) {
     using namespace dn;
-    if(pos<0||n<1||!f||pos>p_->end||pos+n>p_->context||p_->end-pos>MAXT)
+    if(pos<0||n<1||pos>p_->end||pos+n>p_->context||p_->end-pos>MAXT)
         throw std::runtime_error("native draft invalid feature position/gap");
+    if(!f){p_->end=pos+n;return;}
+    if(!std::getenv("MK_DFLASH_TRACE")&&n>CACHE) {
+        const int skip=((n-CACHE)/p_->chunk)*p_->chunk;
+        if(skip>0){pos+=skip;n-=skip;f+=size_t(skip)*5*D;}
+    }
     const auto start=std::chrono::steady_clock::now();
     DC(cudaEventRecord(p_->ready,0));DC(cudaStreamWaitEvent(p_->stream,p_->ready,0));
     DC(cudaEventRecord(p_->injection_begin,p_->stream));
@@ -581,7 +588,7 @@ void MKDFlashNative::inject_device(int pos,int n,const float * f) {
         p_->trace("inp_g_embeddings",-1,p_->fused_norm,size_t(count)*D);
         for(int i=0;i<NL;i++) {
             const auto & b=p_->blocks[i];
-            p_->multiply(b.k,p_->fused_norm,p_->k,count);p_->multiply(b.v,p_->fused_norm,p_->v,count);
+            p_->multiply(b.k,p_->fused_norm,p_->k,count,i>0);p_->multiply(b.v,p_->fused_norm,p_->v,count,true);
             cache_kv<<<count*8,HD,0,p_->stream>>>(p_->k,p_->v,b.kn,
                 p_->cache_k+size_t(i)*8*CACHE*HD,p_->cache_v+size_t(i)*8*CACHE*HD,pos+off,count,p_->ctl,false);
         }

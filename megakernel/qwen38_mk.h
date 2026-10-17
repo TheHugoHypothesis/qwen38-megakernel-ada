@@ -55,7 +55,7 @@ class MKEngine {
     using FeatureSink = std::function<void(int position, int count, const std::vector<float> & features)>;
     void enable_features(const std::vector<int> & layers, FeatureSink sink);
     using DeviceFeatureSink = std::function<void(int position,int count,const float * features)>;
-    void enable_device_features(const std::vector<int> & layers,DeviceFeatureSink sink);
+    void enable_device_features(const std::vector<int> & layers,DeviceFeatureSink sink,int feature_window=0);
     // Borrowed GGML CUDA tensors. The draft must be destroyed before this engine.
     MKSharedWeights share_weights();
     // Debug helper: copy of the last main-model logits row selection (argmax ids) is not kept;

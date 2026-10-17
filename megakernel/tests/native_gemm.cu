@@ -31,11 +31,11 @@ int main(int argc,char ** argv) {
         if(argc!=2) return 2;
         gguf::File file(argv[1]);
         cublasHandle_t blas; BL(cublasCreate(&blas));
-        for(int type : {18,21,23}) {
+        for(int type : {16,17,18,21,22,23}) {
             const gguf::Tensor * tensor=nullptr;
             for(const auto & entry:file.tensors) {
                 const auto & t=entry.second;
-                if(t.type==unsigned(type) && t.name.find("ffn_")!=std::string::npos) { tensor=&t; break; }
+                if(t.type==unsigned(type) && t.name.find("blk.")!=std::string::npos) { tensor=&t; break; }
             }
             if(!tensor) throw std::runtime_error("missing test tensor");
             const auto & t=*tensor;
@@ -60,14 +60,16 @@ int main(int argc,char ** argv) {
             CU(cudaMemcpy(wf,weights.data(),weights.size()*2,cudaMemcpyHostToDevice));
             CU(cudaMemcpy(xd,x.data(),x.size()*2,cudaMemcpyHostToDevice));
             CU(cudaMemcpy(xpd,xp.data(),xp.size()*2,cudaMemcpyHostToDevice));
-            for(int T : {1,127,128,512}) {
+            for(int T : {1,32,64,127,128,512}) {
                 const pf::WMat wm{w,nullptr,type,K,N,int(rb),0};
                 const pf::Out out{y,N,pf::OUT_STORE,nullptr};
                 auto native=[&] {
-                    const dim3 grid((N+63)/64,(T+63)/64);
-                    if(type==18) pf::native_mmh<18><<<grid,256>>>(wm,xpd,T,out);
-                    if(type==21) pf::native_mmh<21><<<grid,256>>>(wm,xpd,T,out);
-                    if(type==23) pf::native_mmh<23><<<grid,256>>>(wm,xpd,T,out);
+                    if(type==16) pf::launch_native_mmh<16>(wm,xpd,T,out);
+                    if(type==17) pf::launch_native_mmh<17>(wm,xpd,T,out);
+                    if(type==18) pf::launch_native_mmh<18>(wm,xpd,T,out);
+                    if(type==21) pf::launch_native_mmh<21>(wm,xpd,T,out);
+                    if(type==22) pf::launch_native_mmh<22>(wm,xpd,T,out);
+                    if(type==23) pf::launch_native_mmh<23>(wm,xpd,T,out);
                     CU(cudaGetLastError());
                 };
                 auto reference=[&] {

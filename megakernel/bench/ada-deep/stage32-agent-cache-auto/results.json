@@ -1,0 +1,67 @@
+{
+  "prefill_chunk": "auto",
+  "ctx": 40000,
+  "kv": "q4",
+  "turns": [
+    {
+      "turn": "1_cold_8k_tool_call",
+      "prompt_tokens": 8136,
+      "cached_tokens": 0,
+      "prompt_ms": 11100.383520126343,
+      "completion_tokens": 48,
+      "predicted_ms": 630.2545070648193,
+      "predicted_per_second": 76.15970923166024,
+      "has_reasoning": true,
+      "tool_calls": [
+        {
+          "id": "call_11ebe2ad0da6462ca5ebf14d",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\": \"megakernel/capi.cpp\"}"
+          }
+        }
+      ]
+    },
+    {
+      "turn": "2_same_prompt_8k_retry",
+      "prompt_tokens": 8136,
+      "cached_tokens": 8135,
+      "prompt_ms": 57.946205139160156,
+      "completion_tokens": 48,
+      "predicted_ms": 629.3151378631592,
+      "predicted_per_second": 76.27339167938038
+    },
+    {
+      "turn": "3_tool_roundtrip_stripped_reasoning",
+      "prompt_tokens": 8242,
+      "cached_tokens": 8185,
+      "incremental_tokens": 57,
+      "prompt_ms": 322.8139877319336,
+      "completion_tokens": 46,
+      "predicted_ms": 479.34412956237793,
+      "predicted_per_second": 95.9644588575564,
+      "tool_calls": [
+        {
+          "id": "call_aa05608ffbf348f59951cf10",
+          "type": "function",
+          "function": {
+            "name": "grep_code",
+            "arguments": "{\"pattern\": \"checkpoint_pos\"}"
+          }
+        }
+      ]
+    },
+    {
+      "turn": "4_second_tool_roundtrip_summary",
+      "prompt_tokens": 8351,
+      "cached_tokens": 8288,
+      "incremental_tokens": 63,
+      "prompt_ms": 465.2094841003418,
+      "completion_tokens": 128,
+      "predicted_ms": 2765.01727104187,
+      "predicted_per_second": 46.292658400563646,
+      "content": "`mk_checkpoint_pos` returns the integer position (token index) in the engine's current sequence at which a saved checkpoint exists, allowing the server to rewind to that point and"
+    }
+  ]
+}

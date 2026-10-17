@@ -26,6 +26,28 @@ class ContextPromptTests(unittest.TestCase):
     def test_plain_corpus_cycles_exactly(self):
         self.assertEqual(bench.make_prompt([1, 2, 3], 7, None, 129746), [1, 2, 3, 1, 2, 3, 1])
 
+    def test_reasoning_cache_restores_stripped_assistant_thinking(self):
+        mk_spec = importlib.util.spec_from_file_location('mk_server', Path(__file__).parents[1] / 'server/mk_server.py')
+        mk = importlib.util.module_from_spec(mk_spec)
+        mk_spec.loader.exec_module(mk)
+        cache = {
+            ('call', 'call_abc123'): 'Inspecting file header.',
+            ('turn', 'Done.', ()): 'Verified output.',
+        }
+        msgs = [
+            {'role': 'user', 'content': 'Read file'},
+            {'role': 'assistant', 'content': None, 'tool_calls': [
+                {'id': 'call_abc123', 'type': 'function', 'function': {'name': 'read_file', 'arguments': '{"path": "a.py"}'}}
+            ]},
+            {'role': 'tool', 'tool_call_id': 'call_abc123', 'content': 'print(1)'},
+            {'role': 'assistant', 'content': 'Done.'},
+            {'role': 'assistant', 'content': 'Explicit', 'reasoning_content': 'Custom'},
+        ]
+        norm = mk.normalize_messages(msgs, cache)
+        self.assertEqual(norm[1].get('reasoning_content'), 'Inspecting file header.')
+        self.assertEqual(norm[3].get('reasoning_content'), 'Verified output.')
+        self.assertEqual(norm[4].get('reasoning_content'), 'Custom')
+
 
 if __name__ == '__main__':
     unittest.main()

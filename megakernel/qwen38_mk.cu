@@ -2255,6 +2255,7 @@ struct MKEngine::Impl {
     std::vector<void *> allocs;
     FeatureSink feature_sink;
     DeviceFeatureSink device_feature_sink;
+    int feature_window = 0;
     std::vector<float> feature_host;
     ggml_context * shared_ctx = nullptr;
     ggml_backend_buffer_t shared_buffer = nullptr;
@@ -2295,10 +2296,11 @@ struct MKEngine::Impl {
             fprintf(stderr,"[mk] runtime VRAM: %.3f GiB engine allocations, %.3f GiB device used, %.3f GiB free\n",
                     allocated_bytes/double(1ull<<30),(total_b-free_b)/double(1ull<<30),free_b/double(1ull<<30));
         }
+        CK(cudaMemcpy(&ck_ctl, hb.ctl, sizeof(Ctl), cudaMemcpyDeviceToHost));
+        if (ck_pos == ck_ctl.dn_c) return;
         CK(cudaMemcpy(ck_dstate, hb.dstate, ns * 4, cudaMemcpyDeviceToDevice));
         CK(cudaMemcpy(ck_conv, hb.conv, nc * 4, cudaMemcpyDeviceToDevice));
         CK(cudaMemcpy(ck_hhist, hb.h_hist, nh * 4, cudaMemcpyDeviceToDevice));
-        CK(cudaMemcpy(&ck_ctl, hb.ctl, sizeof(Ctl), cudaMemcpyDeviceToHost));
         ck_pos = ck_ctl.dn_c;
     }
     void ck_restore() {
@@ -2486,6 +2488,8 @@ struct MKEngine::Impl {
     }
 
     int pf_cap = 512;
+    bool pf_auto_chunk = true;
+    int pf_n0 = 0;
     cublasHandle_t pf_blas = nullptr;
     __half * pf_weights = nullptr, * pf_input = nullptr;
     bool native_prefill = false;
@@ -2518,6 +2522,7 @@ struct MKEngine::Impl {
             auto_chunk = false;
             }
         }
+        pf_auto_chunk = auto_chunk;
         for (const auto & entry : file.tensors) native_prefill |= gguf::is_native_quant(entry.second.type);
         cudaDeviceProp prop;
         CK(cudaGetDeviceProperties(&prop, 0));
@@ -2858,6 +2863,7 @@ struct MKEngine::Impl {
     // ---------------- batched prefill (prefill.cuh) ----------------
     PBufs hp{};
     bool pf_ready = false;
+    int pf_total_n = 0;
 
     void pf_init() {
         if (pf_ready) return;
@@ -2895,22 +2901,39 @@ struct MKEngine::Impl {
         pf_ready = true;
     }
 
+    bool uses_native_tile(const Mat & m, int ntok) const {
+        const bool iq = m.type == 16 || m.type == 17 || m.type == 18 || m.type == 21 || m.type == 22 || m.type == 23;
+        if (!iq) return false;
+        if (const char * mode = getenv("MK_NATIVE_GEMM")) {
+            if (!strcmp(mode, "0") || !strcmp(mode, "cublas")) return false;
+            if (!strcmp(mode, "tile")) return true;
+            if (!strcmp(mode, "auto") || !strcmp(mode, "1")) return ntok <= 128;
+            return false;
+        }
+        return (pf_auto_chunk || pf_n0 > 0) && pf_total_n <= 128 && ntok <= 128;
+    }
+
+    bool uses_pf_input(const Mat & m, int ntok) const {
+        if (m.type == T_Q4K || m.type == T_Q5K || m.type == T_Q6K || m.type == T_Q8_0) return false;
+        return !uses_native_tile(m, ntok);
+    }
+
     // y[t][row] (+)= W x_t for the first ntok fp16 rows of xh (token offset t0)
     void gemm(const Mat & m, int ntok, float * y, int ldy, int mode, int t0 = 0, const __half * xin = nullptr,
               bool reuse_native_input = false) {
         const pf::WMat W{m.w, m.d, m.type, m.K, m.N, m.rb, m.nd};
         const __half * X = (xin ? xin : hp.xh) + (size_t) t0 * m.K;
         const pf::Out O{y, ldy, mode, nullptr};
-        if(const char * mode=getenv("MK_NATIVE_GEMM")) {
-            if(!strcmp(mode,"tile") && (m.type==18 || m.type==21 || m.type==23)) {
-                const dim3 tiles((m.N+63)/64,(ntok+63)/64);
-                switch(m.type) {
-                    case 18: pf::native_mmh<18><<<tiles,256>>>(W,X,ntok,O); break;
-                    case 21: pf::native_mmh<21><<<tiles,256>>>(W,X,ntok,O); break;
-                    case 23: pf::native_mmh<23><<<tiles,256>>>(W,X,ntok,O); break;
-                }
-                return;
+        if (uses_native_tile(m, ntok)) {
+            switch (m.type) {
+                case 16: pf::launch_native_mmh<16>(W, X, ntok, O); break;
+                case 17: pf::launch_native_mmh<17>(W, X, ntok, O); break;
+                case 18: pf::launch_native_mmh<18>(W, X, ntok, O); break;
+                case 21: pf::launch_native_mmh<21>(W, X, ntok, O); break;
+                case 22: pf::launch_native_mmh<22>(W, X, ntok, O); break;
+                case 23: pf::launch_native_mmh<23>(W, X, ntok, O); break;
             }
+            return;
         }
         const dim3 grid(m.N / pf::BM, (ntok + pf::BN - 1) / pf::BN);
         if(m.N%pf::BM) {
@@ -2930,8 +2953,11 @@ struct MKEngine::Impl {
                     throw std::runtime_error("native prefill matrix exceeds bounded workspace");
                 const int grid16=std::min(4096,(m.N*m.K/16+255)/256);
                 switch(m.type) {
+                    case 16: pk_native_weights16<16><<<grid16,256>>>(m,pf_weights); break;
+                    case 17: pk_native_weights16<17><<<grid16,256>>>(m,pf_weights); break;
                     case 18: pk_native_weights16<18><<<grid16,256>>>(m,pf_weights); break;
                     case 21: pk_native_weights16<21><<<grid16,256>>>(m,pf_weights); break;
+                    case 22: pk_native_weights16<22><<<grid16,256>>>(m,pf_weights); break;
                     case 23: pk_native_weights16<23><<<grid16,256>>>(m,pf_weights); break;
                     default: pk_native_weights<<<std::min(4096, (m.N*m.K/8+255)/256), 256>>>(m, pf_weights);
                 }
@@ -2950,9 +2976,7 @@ struct MKEngine::Impl {
     void gemm_glu(const Mat & g, const Mat & u, int ntok) {
         if (g.type != T_Q4K || u.type != T_Q4K || u.rb != g.rb) {
             gemm(g, ntok, hp.y0, FF, pf::OUT_STORE);
-            const bool native_g=g.type!=T_Q4K && g.type!=T_Q5K && g.type!=T_Q6K && g.type!=T_Q8_0;
-            const char * tile=getenv("MK_NATIVE_GEMM");
-            const bool reuse=native_g && !(tile && !strcmp(tile,"tile"));
+            const bool reuse = uses_pf_input(g, ntok);
             gemm(u, ntok, hp.y1, FF, pf::OUT_STORE, 0, nullptr, reuse);
             pk_native_glu<<<std::min(1024, (ntok*FF+255)/256), 256>>>(ntok);
             return;
@@ -3041,25 +3065,36 @@ struct MKEngine::Impl {
     // score: instead of MTP, greedy argmax of every position -> pred.
     void pf_run(const std::vector<int> & toks, int n0, std::vector<int> * pred) {
         pf_init();
+        pf_n0 = n0;
         const int N = (int) toks.size(), cap = hp.cap;
+        pf_total_n = N;
+        const int keep_from = (!pred && feature_window > 0 && device_feature_sink)
+            ? std::max(0, n0 + N + 1 - feature_window) : 0;
         if (n0 == 0) CK(cudaMemset(hp.h, 0, D * sizeof(float)));
         else CK(cudaMemcpy(hp.h, hb.h_hist + (size_t) ((n0 - 1) % H_RING) * D, D * sizeof(float), cudaMemcpyDeviceToDevice));
         for (int c0 = 0; c0 < N; c0 += cap) {
             const int T = std::min(cap, N - c0), n = n0 + c0;
+            const int f_skip = (n + T <= keep_from) ? T : (n < keep_from ? ((keep_from - n) / 512) * 512 : 0);
+            const int f_cnt = T - f_skip;
             CK(cudaMemcpy(hp.tok, toks.data() + c0, T * sizeof(int), cudaMemcpyHostToDevice));
             pf_time("embed", [&] { pk_embed<<<T, 256>>>(T); });
             int dl = 0;
             for (int L = 0; L < NL; L++) {
-                if (hb.features && hb.feature_map[L]>=0) {
+                if (hb.features && hb.feature_map[L]>=0 && f_cnt > 0) {
                     CK(cudaMemcpy2DAsync(hb.features+size_t(hb.feature_map[L])*D,
-                        size_t(hb.n_features)*D*sizeof(float),hp.x,D*sizeof(float),
-                        D*sizeof(float),T,cudaMemcpyDeviceToDevice));
+                        size_t(hb.n_features)*D*sizeof(float),hp.x+size_t(f_skip)*D,D*sizeof(float),
+                        D*sizeof(float),f_cnt,cudaMemcpyDeviceToDevice));
                 }
                 const LayerW & W = hw.L[L];
                 pf_time("norm_quant", [&] { pk_norm_quant<<<T, 256>>>(hp.x, W.attn_norm); });
                 if (W.attn) {
                     pf_time("gemm_attn_qkv", [&] { gemm(W.q, T, hp.y0, QG, pf::OUT_STORE); });
-                    pf_time("gemm_attn_qkv", [&] { gemm(W.k, T, hp.y1, 2 * KVD, pf::OUT_STORE); gemm(W.v, T, hp.y1 + KVD, 2 * KVD, pf::OUT_STORE); });
+                    const bool rq = uses_pf_input(W.q, T);
+                    const bool rk = rq || uses_pf_input(W.k, T);
+                    pf_time("gemm_attn_qkv", [&] {
+                        gemm(W.k, T, hp.y1, 2 * KVD, pf::OUT_STORE, 0, nullptr, rq);
+                        gemm(W.v, T, hp.y1 + KVD, 2 * KVD, pf::OUT_STORE, 0, nullptr, rk);
+                    });
                     pf_time("attn_prep", [&] { pk_attn_prep<<<T, 256>>>(n, L / 4, W.qn, W.kn, 1); });
                     pf_time("attn", [&] {
                         if (hb.kv_mode == 2) pk_attn<2><<<dim3((T + AT_Q - 1) / AT_Q, NKV), 192, AT_SMEM>>>(T, n, L / 4);
@@ -3069,7 +3104,11 @@ struct MKEngine::Impl {
                     pf_time("attn_out", [&] { pk_attn_out<<<T, 256>>>(); });
                     pf_time("gemm_attn_o", [&] { gemm(W.o, T, hp.x, D, pf::OUT_ADD); });
                 } else {
-                    pf_time("gemm_dn_in", [&] { gemm(W.qkv, T, hp.y0, QKV, pf::OUT_STORE); gemm(W.gate, T, hp.y1, VD, pf::OUT_STORE); });
+                    const bool rqkv = uses_pf_input(W.qkv, T);
+                    pf_time("gemm_dn_in", [&] {
+                        gemm(W.qkv, T, hp.y0, QKV, pf::OUT_STORE);
+                        gemm(W.gate, T, hp.y1, VD, pf::OUT_STORE, 0, nullptr, rqkv);
+                    });
                     pf_time("dn_ab", [&] { pk_ab<<<dim3((T + 63) / 64, AB_SPLITS), 256>>>(W.ab, T); });
                     pf_time("dn_prep", [&] { pk_dn_prep<<<T, 256>>>(T, n, dl, W.conv, W.dt, W.A); pk_conv_ring<<<std::min(T, CONV_RING), 256>>>(T, n, dl); });
                     pf_time("dn_scan", [&] { pk_dn_scan<<<dim3(NVH, 2), 256>>>(T, dl); });
@@ -3081,7 +3120,8 @@ struct MKEngine::Impl {
                 pf_time("gemm_ffn_gu", [&] { gemm_glu(W.fg, W.fu, T); });
                 pf_time("gemm_ffn_down", [&] { gemm(W.fd, T, hp.x, D, pf::OUT_ADD, 0, hp.xh2); });
             }
-            emit_features(n,T);
+            if (f_skip > 0 && device_feature_sink) device_feature_sink(n, f_skip, nullptr);
+            if (f_cnt > 0) emit_features(n + f_skip, f_cnt);
             if (pred) {
                 pk_norm_quant<<<T, 256>>>(hp.x, hw.onorm);
                 const int score_cap = std::min(128, cap * FF / vocab);
@@ -3198,6 +3238,13 @@ int MKEngine::prefill(const std::vector<int> & tokens) {
         i = head.size();
         c.dn_c = n0 + (int) i;
         c.mtp_valid = c.dn_c;
+        c.n = c.dn_c;
+        CK(cudaMemcpy(p_->hb.ctl, &c, sizeof(Ctl), cudaMemcpyHostToDevice));
+        p_->ck_save();
+    } else if (c.dn_c > 0 && i < feed.size()) {
+        c.n = c.dn_c;
+        CK(cudaMemcpy(p_->hb.ctl, &c, sizeof(Ctl), cudaMemcpyHostToDevice));
+        p_->ck_save();
     }
     while (i < feed.size()) {
         const int T = (int) std::min<size_t>(MAXT, feed.size() - i);
@@ -3214,7 +3261,7 @@ int MKEngine::prefill(const std::vector<int> & tokens) {
     p_->nd_avail = p_->ndraft;
     p_->all_acc = true;
     CK(cudaGetLastError());
-    p_->ck_save();
+    if (p_->ck_pos < 0) p_->ck_save();
     seq.push_back(c.out[0]);
     return c.out[0];
 }
@@ -3339,10 +3386,11 @@ void MKEngine::enable_features(const std::vector<int> & layers, FeatureSink sink
     CK(cudaMemcpyToSymbol(cB,&p_->hb,sizeof(Bufs)));
 }
 
-void MKEngine::enable_device_features(const std::vector<int> & layers,DeviceFeatureSink sink) {
+void MKEngine::enable_device_features(const std::vector<int> & layers,DeviceFeatureSink sink,int feature_window) {
     if(!sink)throw std::runtime_error("device feature sink required");
     enable_features(layers,[](int,int,const std::vector<float> &){});
     p_->feature_sink={};p_->device_feature_sink=std::move(sink);
+    p_->feature_window=std::max(0,feature_window);
 }
 
 MKSharedWeights MKEngine::share_weights() {

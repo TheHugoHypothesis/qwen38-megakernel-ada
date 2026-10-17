@@ -79,7 +79,7 @@ int main(int argc,char ** argv) {
                 if(oracle){std::vector<float> host(size_t(n)*5*5120);
                     if(cudaMemcpy(host.data(),f,host.size()*4,cudaMemcpyDeviceToHost)!=cudaSuccess)throw std::runtime_error("oracle feature copy failed");
                     bridge->inject(pos,n,host);}
-            });
+            },oracle?0:native->cache_window());
         } else {
             bridge.reset(new MKDFlash(target,draft,ctx,vocab));
             target.enable_features(bridge->layers(),[&](int pos,int n,const std::vector<float> & f){bridge->inject(pos,n,f);});

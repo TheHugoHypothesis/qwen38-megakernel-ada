@@ -92,7 +92,7 @@ void * mk_new_dflash(const char * model,const char * draft,int ctx,int depth,int
         h->dflash=new MKDFlashNative(*h->eng,draft,ctx,llama_vocab_mask(dv));h->draft_depth=depth;
         h->verify_policy=std::make_unique<DFlashVerifyPolicy>(depth,DFlashVerifyPolicy::environment());
         auto * owner=h.get();
-        h->eng->enable_device_features(h->dflash->layers(),[owner](int pos,int n,const float * f){owner->dflash->inject_device(pos,n,f);});
+        h->eng->enable_device_features(h->dflash->layers(),[owner](int pos,int n,const float * f){owner->dflash->inject_device(pos,n,f);},h->dflash->cache_window());
         return h.release();
     } catch(const std::exception & e){g_err=e.what();return nullptr;}
 }
@@ -159,6 +159,8 @@ int mk_step(void * hp, int * out, int cap) {
             if(cap>1) {
                 proposals=h->dflash->draft(h->eng->position(),h->eng->sequence().back(),h->draft_depth);
                 proposals.resize(std::min(width,cap-1));
+                for(size_t i=0;i<proposals.size();i++)
+                    if(llama_vocab_is_eog(h->vocab,proposals[i])){proposals.resize(i+1);break;}
             }
             const long before=h->eng->stats.accepted;
             h->eng->verify_external(proposals,v);
@@ -201,7 +203,10 @@ int mk_checkpoint_pos(void * hp) { return static_cast<Handle *>(hp)->eng->checkp
 int mk_rewind_to_checkpoint(void * hp) {
     try {auto * h=static_cast<Handle *>(hp);
         if(!h->eng->rewind_to_checkpoint())return -1;
-        if(h->dflash&&!h->dflash->restore_checkpoint())throw std::runtime_error("draft checkpoint missing");
+        if(h->dflash){
+            if(!h->dflash->restore_checkpoint())throw std::runtime_error("draft checkpoint missing");
+            h->dflash->truncate(h->eng->checkpoint_pos());
+        }
         if(h->verify_policy)h->verify_policy->reset();
         return 0;
     } catch(const std::exception & e){g_err=e.what();return -1;}

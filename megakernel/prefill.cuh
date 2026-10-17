@@ -788,7 +788,7 @@ __global__ void pk_native_weights16(Mat m, __half * dst) {
     for(size_t i=size_t(blockIdx.x)*blockDim.x+threadIdx.x;
         i<size_t(m.N)*m.K/16; i+=size_t(gridDim.x)*blockDim.x) {
         const size_t e0=16*i;
-        const Quant16 w=quant16<TYPE>(m.w+(e0/m.K)*m.rb, e0%m.K);
+        const Quant16 w=native_iq16<TYPE>(m.w+(e0/m.K)*m.rb, e0%m.K);
         const int * words=reinterpret_cast<const int *>(&w.q);
         unsigned h[8];
         #pragma unroll

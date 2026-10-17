@@ -14,6 +14,7 @@ public:
     void inject_device(int position,int count,const float * features);
     std::vector<int> draft(int position,int anchor,int depth);
     const std::vector<int> & layers() const;
+    int cache_window() const;
     void checkpoint();
     bool restore_checkpoint();
     void truncate(int position);

@@ -1,0 +1,216 @@
+{
+  "library_sha256": "d19d3388475b8a6b9ac294a6dcd408c60da76eea93336d7d227753a40dcd00b5",
+  "checks": [
+    {
+      "mode": "mk_scalar",
+      "case": "sum",
+      "same_ids": true,
+      "ids": [
+        19,
+        20
+      ],
+      "text": "45",
+      "reference_task_correct": true
+    },
+    {
+      "mode": "mk_scalar",
+      "case": "multiply",
+      "same_ids": true,
+      "ids": [
+        16,
+        20,
+        21
+      ],
+      "text": "156",
+      "reference_task_correct": true
+    },
+    {
+      "mode": "mk_scalar",
+      "case": "divide",
+      "same_ids": true,
+      "ids": [
+        16,
+        17
+      ],
+      "text": "12",
+      "reference_task_correct": true
+    },
+    {
+      "mode": "mk_scalar",
+      "case": "portuguese",
+      "same_ids": true,
+      "ids": [
+        19,
+        17
+      ],
+      "text": "42",
+      "reference_task_correct": true
+    },
+    {
+      "mode": "mk_scalar",
+      "case": "python",
+      "same_ids": true,
+      "ids": [
+        69304,
+        12166,
+        198,
+        727,
+        8963,
+        1392,
+        25,
+        514,
+        8,
+        1409,
+        514,
+        25,
+        198,
+        262,
+        4040,
+        5376,
+        279,
+        8963,
+        314,
+        449,
+        7235,
+        69687,
+        198,
+        262,
+        460,
+        307,
+        348,
+        307,
+        198,
+        69304
+      ],
+      "text": "```python\ndef square(n: int) -> int:\n    \"\"\"Return the square of an integer.\"\"\"\n    return n * n\n```",
+      "reference_task_correct": null
+    },
+    {
+      "mode": "mk_scalar",
+      "case": "unicode",
+      "same_ids": true,
+      "ids": [
+        64829,
+        127,
+        123,
+        18222,
+        10949,
+        220,
+        92938,
+        255,
+        92957,
+        229,
+        25291,
+        222
+      ],
+      "text": "caf\u00ff \u03b1 \u2192 \u4e2d\u6587 \ud83d\ude00",
+      "reference_task_correct": false
+    },
+    {
+      "mode": "mk_dflash2",
+      "case": "sum",
+      "same_ids": true,
+      "ids": [
+        19,
+        20
+      ],
+      "text": "45",
+      "reference_task_correct": true
+    },
+    {
+      "mode": "mk_dflash2",
+      "case": "multiply",
+      "same_ids": true,
+      "ids": [
+        16,
+        20,
+        21
+      ],
+      "text": "156",
+      "reference_task_correct": true
+    },
+    {
+      "mode": "mk_dflash2",
+      "case": "divide",
+      "same_ids": true,
+      "ids": [
+        16,
+        17
+      ],
+      "text": "12",
+      "reference_task_correct": true
+    },
+    {
+      "mode": "mk_dflash2",
+      "case": "portuguese",
+      "same_ids": true,
+      "ids": [
+        19,
+        17
+      ],
+      "text": "42",
+      "reference_task_correct": true
+    },
+    {
+      "mode": "mk_dflash2",
+      "case": "python",
+      "same_ids": true,
+      "ids": [
+        69304,
+        12166,
+        198,
+        727,
+        8963,
+        1392,
+        25,
+        514,
+        8,
+        1409,
+        514,
+        25,
+        198,
+        262,
+        4040,
+        5376,
+        279,
+        8963,
+        314,
+        449,
+        7235,
+        69687,
+        198,
+        262,
+        460,
+        307,
+        348,
+        307,
+        198,
+        69304
+      ],
+      "text": "```python\ndef square(n: int) -> int:\n    \"\"\"Return the square of an integer.\"\"\"\n    return n * n\n```",
+      "reference_task_correct": null
+    },
+    {
+      "mode": "mk_dflash2",
+      "case": "unicode",
+      "same_ids": true,
+      "ids": [
+        64829,
+        127,
+        123,
+        18222,
+        10949,
+        220,
+        92938,
+        255,
+        92957,
+        229,
+        25291,
+        222
+      ],
+      "text": "caf\u00ff \u03b1 \u2192 \u4e2d\u6587 \ud83d\ude00",
+      "reference_task_correct": false
+    }
+  ],
+  "limits": "Check functional token-ID preservation against a recorded same-model Q8 run.\n\nBaseline preservation does not imply the recorded model answer was correct;\nknown failures, including Unicode pruning differences, are retained explicitly.\n"
+}

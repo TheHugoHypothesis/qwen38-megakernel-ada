@@ -183,7 +183,7 @@ class BadRequest(Exception):
     pass
 
 
-def normalize_messages(messages):
+def normalize_messages(messages, reasoning_cache=None):
     out = []
     for m in messages:
         m = dict(m)
@@ -194,9 +194,10 @@ def normalize_messages(messages):
                     raise BadRequest(f"unsupported content part type {part.get('type')!r} (text only)")
         if content is None:
             m["content"] = ""
-        if m.get("role") == "assistant" and m.get("tool_calls"):
+        raw_calls = m.get("tool_calls")
+        if m.get("role") == "assistant" and raw_calls:
             calls = []
-            for tc in m["tool_calls"]:
+            for tc in raw_calls:
                 tc = dict(tc)
                 fn = dict(tc.get("function") or {})
                 args = fn.get("arguments")
@@ -209,6 +210,20 @@ def normalize_messages(messages):
                 tc["function"] = fn
                 calls.append(tc)
             m["tool_calls"] = calls
+        if m.get("role") == "assistant" and m.get("reasoning_content") is None and reasoning_cache:
+            cached = None
+            for tc in m.get("tool_calls") or []:
+                cid = tc.get("id")
+                if cid and ("call", cid) in reasoning_cache:
+                    cached = reasoning_cache[("call", cid)]
+                    break
+            if cached is None:
+                sig = tuple((tc.get("function", {}).get("name"),
+                             json.dumps(tc.get("function", {}).get("arguments", {}), sort_keys=True, ensure_ascii=False))
+                            for tc in (m.get("tool_calls") or []))
+                cached = reasoning_cache.get(("turn", m.get("content") or "", sig))
+            if cached is not None:
+                m["reasoning_content"] = cached
         out.append(m)
     return out
 
@@ -317,6 +332,7 @@ class Server:
         self.model_id = os.path.basename(args.model)
         self.lock = threading.Lock()
         self.warned = set()
+        self.reasoning_cache = {}
         log(f"ready in {time.time() - t0:.1f} s: {self.model_id}, ctx {args.ctx}, {args.draft} drafts")
         if getattr(args, 'draft_model', None):
             log(f"DFlash verification: {os.environ.get('MK_DFLASH_VERIFY', 'full')}; "
@@ -332,7 +348,9 @@ class Server:
         if kw is not None and not isinstance(kw, dict):
             raise BadRequest("chat_template_kwargs must be an object")
         kw = kw or {}
-        ctx = dict(messages=normalize_messages(body.get("messages") or []), add_generation_prompt=True)
+        rc = None if os.environ.get("MK_DISABLE_REASONING_CACHE") == "1" else getattr(self, "reasoning_cache", None)
+        ctx = dict(messages=normalize_messages(body.get("messages") or [], rc),
+                   add_generation_prompt=True)
         if body.get("tools"):
             ctx["tools"] = body["tools"]
         for k in ("enable_thinking", "preserve_thinking", "reasoning_effort"):
@@ -426,6 +444,7 @@ class Server:
         parser = OutputParser(thinking, tools)
         dec = codecs.getincrementaldecoder("utf-8")(errors="replace")
         n_gen, finish, pending, aborted = 0, "length", [tok], False
+        collected = {"reasoning": [], "content": []}
         while n_gen < max_new and not aborted:
             if not pending:
                 pending = self.eng.step(max_new-n_gen if self.args.draft_model else None)
@@ -435,14 +454,31 @@ class Server:
                 finish = "stop"
                 break
             for kind, delta in parser.feed(dec.decode(self.eng.piece(t))):
+                collected[kind].append(delta)
                 if emit(kind, delta) is False:
                     aborted = True
                     break
         for kind, delta in parser.feed(dec.decode(b"", final=True), final=True):
+            collected[kind].append(delta)
             emit(kind, delta)
         calls = parse_tool_calls(parser.tool_text, tools) if parser.tool_text else []
         if calls:
             finish = "tool_calls"
+        if collected["reasoning"]:
+            reasoning_text = "".join(collected["reasoning"]).strip()
+            content_text = "".join(collected["content"])
+            cache = getattr(self, "reasoning_cache", None)
+            if cache is None:
+                cache = self.reasoning_cache = {}
+            elif len(cache) > 512:
+                cache.clear()
+            for tc in calls:
+                if tc.get("id"):
+                    cache[("call", tc["id"])] = reasoning_text
+            sig = tuple((tc["function"]["name"],
+                         json.dumps(json.loads(tc["function"]["arguments"]), sort_keys=True, ensure_ascii=False))
+                        for tc in calls)
+            cache[("turn", content_text, sig)] = reasoning_text
         t2 = time.time()
         log(f"prompt {len(toks)} tok ({reused} reused) in {t1 - t0:.2f} s, {n_gen} tok in {t2 - t1:.2f} s "
             f"({n_gen / max(t2 - t1, 1e-9):.1f} tok/s), {finish}")

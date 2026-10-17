@@ -1,0 +1,67 @@
+{
+  "prefill_chunk": "128",
+  "ctx": 40000,
+  "kv": "q4",
+  "turns": [
+    {
+      "turn": "1_cold_8k_tool_call",
+      "prompt_tokens": 8136,
+      "cached_tokens": 0,
+      "prompt_ms": 28606.009006500244,
+      "completion_tokens": 53,
+      "predicted_ms": 719.1629409790039,
+      "predicted_per_second": 73.69678967029441,
+      "has_reasoning": true,
+      "tool_calls": [
+        {
+          "id": "call_f710a106c7f9402a8266db3d",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\": \"megakernel/capi.cpp\"}"
+          }
+        }
+      ]
+    },
+    {
+      "turn": "2_same_prompt_8k_retry",
+      "prompt_tokens": 8136,
+      "cached_tokens": 0,
+      "prompt_ms": 28562.4418258667,
+      "completion_tokens": 53,
+      "predicted_ms": 718.6112403869629,
+      "predicted_per_second": 73.75336902809951
+    },
+    {
+      "turn": "3_tool_roundtrip_stripped_reasoning",
+      "prompt_tokens": 8226,
+      "cached_tokens": 0,
+      "incremental_tokens": 8226,
+      "prompt_ms": 29005.109310150146,
+      "completion_tokens": 46,
+      "predicted_ms": 480.5479049682617,
+      "predicted_per_second": 95.72406730820752,
+      "tool_calls": [
+        {
+          "id": "call_d2ae2bbb006c4316b60dd8a5",
+          "type": "function",
+          "function": {
+            "name": "grep_code",
+            "arguments": "{\"pattern\": \"checkpoint_pos\"}"
+          }
+        }
+      ]
+    },
+    {
+      "turn": "4_second_tool_roundtrip_summary",
+      "prompt_tokens": 8319,
+      "cached_tokens": 0,
+      "incremental_tokens": 8319,
+      "prompt_ms": 29032.607555389404,
+      "completion_tokens": 128,
+      "predicted_ms": 2474.378824234009,
+      "predicted_per_second": 51.730154957022336,
+      "content": ""
+    }
+  ]
+}

@@ -93,6 +93,7 @@ def main():
     ap.add_argument('--tokens',type=int,default=256);ap.add_argument('--reps',type=int,default=1)
     ap.add_argument('--verify-width',choices=['full','3','auto'],default='full')
     ap.add_argument('--t4-fusion',choices=['0','1'],default='0')
+    ap.add_argument('--prefill-chunk',default='128')
     ap.add_argument('--profile',action='store_true');ap.add_argument('--prepare-only',action='store_true')
     ap.add_argument('--reuse-fixtures',action='store_true');ap.add_argument('--label',default='production')
     a=ap.parse_args()
@@ -104,14 +105,14 @@ def main():
     if not a.draft_model:ap.error('--draft-model is required to run CUDA')
     run_dir=a.output/a.label;run_dir.mkdir(parents=True,exist_ok=True)
     report={'model':str(a.model.resolve()),'draft_model':str(a.draft_model.resolve()),
-            'profile':a.profile,'kv':a.kv,'capacity':a.ctx,'clocks_changed':False,'runs':[],
+            'profile':a.profile,'kv':a.kv,'capacity':a.ctx,'prefill_chunk':a.prefill_chunk,'clocks_changed':False,'runs':[],
             'binary_sha256':hashlib.sha256(a.binary.read_bytes()).hexdigest(),'limits':__doc__}
     for case in fixtures['cases']:
         if case['workload'] not in a.workloads or case['requested_tokens'] not in a.lengths:continue
         if case['prompt_tokens']+a.tokens+16>=a.ctx:ap.error('capacity too small for a populated fixture plus generation')
         name=f"{case['workload']}-{case['requested_tokens']}";stem=run_dir/name
         cmd=[str(a.binary.resolve()),'-m',str(a.model.resolve()),'--draft-model',str(a.draft_model.resolve()),
-             '--prompt-ids',case['prompt_ids'],'-d','7','-c',str(a.ctx),'--kv',a.kv,'--prefill-chunk','128',
+             '--prompt-ids',case['prompt_ids'],'-d','7','-c',str(a.ctx),'--kv',a.kv,'--prefill-chunk',str(a.prefill_chunk),
              '-n',str(a.tokens),'--reps',str(a.reps),'--temp','0','--seed','123','--no-warmup']
         env=os.environ.copy()
         for k in ('MK_PROFILE','MK_PF_PROFILE','MK_CHECK_FINITE','MK_SCORE_PROBE_POSITION','MK_SCORE_PROBE_FILE','MK_DFLASH_TRACE'):env.pop(k,None)
